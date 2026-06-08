@@ -1,0 +1,178 @@
+/*
+ * Drawie2 — global stylesheet
+ *
+ * Tailwind v4 + HeroUI v3 are layered together. HeroUI's :root token block
+ * provides the defaults (--accent, --background, --surface*, --default, etc.);
+ * we override them below with the editorial palette (hue 147.88, chroma 0.21,
+ * lightness 0.77 — "cream + lime"). HeroUI components read from those vars
+ * directly, so any screen using <Surface>, <Button variant="primary">, etc.
+ * automatically picks up the theme.
+ *
+ * Note: Tailwind v4's Oxide source scanner uses git for file tracking. If
+ * .git is missing, only the directory containing this CSS is scanned (i.e.
+ * src/*.tsx only). Keep this project a git repo or Oxide will silently miss
+ * every nested component.
+ */
+
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/* ─── Editorial palette overrides (hue 147.88, chroma 0.2124, base 0.0026) ── */
+:root,
+.light,
+.default,
+[data-theme="light"],
+[data-theme="default"] {
+  --accent:                      oklch(76.97% 0.2124 147.88);
+  --accent-foreground:           oklch(15.00% 0.0030 147.88);
+
+  --background:                  oklch(97.02% 0.0026 147.88);
+  --foreground:                  oklch(21.03% 0.0026 147.88);
+
+  --surface:                     oklch(100.00% 0.0013 147.88);
+  --surface-foreground:          oklch(21.03% 0.0026 147.88);
+  --surface-secondary:           oklch(95.24% 0.0021 147.88);
+  --surface-secondary-foreground:oklch(21.03% 0.0026 147.88);
+  --surface-tertiary:            oklch(93.73% 0.0021 147.88);
+  --surface-tertiary-foreground: oklch(21.03% 0.0026 147.88);
+
+  --overlay:                     oklch(100.00% 0.0013 147.88);
+  --overlay-foreground:          oklch(21.03% 0.0026 147.88);
+
+  --default:                     oklch(94.00% 0.0026 147.88);
+  --default-foreground:          oklch(21.03% 0.0048 147.88);
+
+  --muted:                       oklch(55.17% 0.0055 147.88);
+  --separator:                   oklch(92.00% 0.0026 147.88);
+  --border:                      oklch(90.00% 0.0026 147.88);
+  --focus:                       oklch(76.97% 0.2124 147.88);
+
+  --field-background:            oklch(100.00% 0.0013 147.88);
+  --field-foreground:            oklch(21.03% 0.0026 147.88);
+  --field-placeholder:           oklch(55.17% 0.0055 147.88);
+  --field-border:                transparent;
+  /* Form-field corner radius — every Input / SearchField / TextArea / NumberField
+   * inherits this single token. Matches the standard --radius (0.5rem) so
+   * search bars, text inputs, and textareas share corners with cards and
+   * dialogs. The previous 0.125rem made fields look nearly square. */
+  --field-radius:                0.5rem;
+
+  --success:                     oklch(73.29% 0.1948 138.19);
+  --success-foreground:          oklch(21.03% 0.0048 138.19);
+  --warning:                     oklch(78.19% 0.1596 59.71);
+  --warning-foreground:          oklch(21.03% 0.0048 59.71);
+  --danger:                      oklch(65.32% 0.2344 13.12);
+  --danger-foreground:           oklch(99.11% 0 0);
+
+  --radius:                      0.5rem;
+}
+
+/* ─── Fonts (Figtree only, loaded via index.html <link>) ─────────────────── */
+@theme inline {
+  --font-sans:    "Figtree", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Figtree", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Drawie2 design system is single-typeface: every `font-mono` className
+   * still resolves through this variable to Figtree, so eyebrow labels and
+   * tabular numerics share the same family as the rest of the UI. */
+  --font-mono:    "Figtree", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── Body + root ─────────────────────────────────────────────────────────── */
+html, body, #root { height: 100%; overscroll-behavior: none; }
+body {
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* ─── Drawing-editor specific utilities ──────────────────────────────────── */
+input[type="range"].drawie-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  height: 28px;
+}
+input[type="range"].drawie-range::-webkit-slider-runnable-track {
+  height: 8px;
+  background: linear-gradient(to right, var(--surface-tertiary), var(--default));
+  border-radius: 9999px;
+}
+input[type="range"].drawie-range::-moz-range-track {
+  height: 8px;
+  background: linear-gradient(to right, var(--surface-tertiary), var(--default));
+  border-radius: 9999px;
+}
+input[type="range"].drawie-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 3px solid var(--accent);
+  margin-top: -8px;
+  cursor: pointer;
+}
+input[type="range"].drawie-range::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 3px solid var(--accent);
+  cursor: pointer;
+}
+
+
+.no-touch-action {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.drawie-hide-scrollbar { scrollbar-width: none; }
+.drawie-hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+.stage-bg {
+  background-color: var(--surface-secondary);
+  background-image: radial-gradient(circle at 1px 1px, oklch(20% 0.0026 147.88 / 0.05) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+.tile-glow {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 6px oklch(76.97% 0.2124 147.88 / 0.18),
+    0 30px 60px -30px oklch(76.97% 0.2124 147.88 / 0.45),
+    0 60px 120px -40px oklch(15% 0 0 / 0.55);
+}
+
+/* Animations reused across the editor */
+@keyframes step-in {
+  0%   { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0);   opacity: 1; }
+}
+.animate-step-in { animation: step-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes tile-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.tile-pop { animation: tile-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes mosaic-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.mosaic-pulse { animation: mosaic-pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
+
+/* ─── Completion mosaic ──────────────────────────────────────────────────── */
+.mosaic-section { background: var(--surface-secondary); border-radius: var(--radius); }
+.mosaic-tile { aspect-ratio: 1 / 1; border-radius: 3px; transition: background 120ms ease, transform 120ms ease; }
+.mosaic-tile--done   { background: var(--success); }
+.mosaic-tile--active { background: var(--accent); animation: mosaic-pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
+.mosaic-tile--empty  { background: var(--default); }
+button.mosaic-tile--empty { cursor: pointer; border: 0; padding: 0; }
+button.mosaic-tile--empty:hover { background: var(--accent); transform: scale(0.92); }
