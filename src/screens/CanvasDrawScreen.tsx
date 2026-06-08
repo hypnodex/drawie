@@ -9,22 +9,28 @@ import { useAuth } from '../state/AuthContext'
 import type { Canvas, Tile } from '../types/domain'
 
 /**
- * Router wrapper around DrawingScreen for `/canvas/:id/draw/:tileId`. Hydrates
- * the canvas + tiles from Supabase, ensures the tile is claimed by the current
- * user (idempotent), and on submit uploads the composited artwork to storage +
- * marks the tile complete.
+ * Router wrapper around DrawingScreen for `/canvas/:id/draw/:tileId`. Loads the
+ * canvas + its tiles together (a single fetch — chaining two useAsync calls
+ * caused a redirect-back "blink" before tiles arrived), ensures the tile is
+ * claimed by the current user, and on submit uploads the composited artwork to
+ * storage + marks the tile complete.
  */
 export default function CanvasDrawScreen() {
   const { id = '', tileId = '' } = useParams()
   const nav = useNavigate()
   const { user, recordTileSubmission } = useAuth()
 
-  const { data: canvas, loading: canvasLoading } = useAsync(() => getCanvas(id), [id], null as Canvas | null)
-  const { data: tiles, loading: tilesLoading, reload } = useAsync(
-    () => (canvas ? getTilesForCanvas(canvas.id) : Promise.resolve([])),
-    [canvas?.id], [] as Tile[],
+  const { data, loading, reload } = useAsync(
+    async () => {
+      const canvas = await getCanvas(id)
+      const tiles = canvas ? await getTilesForCanvas(canvas.id) : []
+      return { canvas, tiles }
+    },
+    [id],
+    { canvas: null as Canvas | null, tiles: [] as Tile[] },
   )
-  const tile = tiles.find((t) => t.id === tileId)
+  const canvas = data.canvas
+  const tile = data.tiles.find((t) => t.id === tileId)
 
   // Claim the tile on open if it's still empty (e.g. opened directly by URL).
   useEffect(() => {
@@ -35,7 +41,7 @@ export default function CanvasDrawScreen() {
   }, [canvas?.id, tile?.id, tile?.status])
 
   if (!user) return <Navigate to="/login" replace />
-  if (canvasLoading || tilesLoading) {
+  if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-[var(--background)]"><Spinner size="lg" /></div>
   }
   if (!canvas || !tile) return <Navigate to={`/canvas/${id}`} replace />
@@ -50,7 +56,7 @@ export default function CanvasDrawScreen() {
     <DrawingScreen
       canvas={canvas}
       tile={tile}
-      tiles={tiles}
+      tiles={data.tiles}
       sessionKey={sessionKey}
       onSubmit={async (image) => {
         let path: string | undefined
