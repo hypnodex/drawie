@@ -33,6 +33,7 @@ export default function CanvasDetailScreen() {
   const [exportOpen, setExportOpen] = useState(false)
   const [showGrid, setShowGrid] = useState(false)
   const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState('')
 
   const { data: canvas, loading: canvasLoading, reload: reloadCanvas } = useAsync(() => getCanvas(id), [id], null as Canvas | null)
   const { data: tiles, reload: reloadTiles } = useAsync(
@@ -56,15 +57,22 @@ export default function CanvasDetailScreen() {
     [contributorIds.join(',')], new Map<string, User>(),
   )
 
-  // Claim a tile (specific or random), then go draw it.
+  // Claim a tile (specific or random), then go draw it. Surfaces a clear
+  // message instead of failing silently (e.g. the canvas filled up).
   const goDraw = useCallback(async (tileId?: string) => {
     if (!canvas) return
     if (!isAuthed) { nav('/login'); return }
-    setJoining(true)
+    setJoining(true); setJoinError('')
     try {
       const tile = await claimTile(canvas.id, tileId)
       nav(`/canvas/${canvas.id}/draw/${tile.id}`)
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setJoinError(
+        msg.includes('TILE_UNAVAILABLE')
+          ? 'This canvas is full — every tile has been claimed. Check back when the mosaic is finished.'
+          : 'Could not join this canvas. Please try again.',
+      )
       setJoining(false)
     }
   }, [canvas, isAuthed, nav])
@@ -83,6 +91,9 @@ export default function CanvasDetailScreen() {
     : false
   const userSaved = user?.savedCanvasIds.includes(canvas.id) ?? false
   const isCompleted = canvas.status === 'completed'
+  // A canvas can be un-completed yet have every tile claimed (all in-progress).
+  // In that case there's nothing to join — show that instead of a dead button.
+  const hasFreeTiles = tiles.some((t) => t.status === 'empty')
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-8 sm:py-12">
@@ -265,7 +276,7 @@ export default function CanvasDetailScreen() {
                     </Alert.Description>
                   </Alert.Content>
                 </Alert>
-              ) : (
+              ) : hasFreeTiles ? (
                 <Button
                   variant="primary"
                   size="lg"
@@ -275,6 +286,15 @@ export default function CanvasDetailScreen() {
                 >
                   {joining ? 'Joining…' : <>Join canvas <span aria-hidden>→</span></>}
                 </Button>
+              ) : (
+                <Alert status="default">
+                  <Alert.Content>
+                    <Alert.Title className="font-mono text-[10px] font-bold">All tiles claimed</Alert.Title>
+                    <Alert.Description className="text-sm leading-snug">
+                      Every artboard on this canvas is taken. Check back when the mosaic is finished to see the reveal.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
               )
             ) : (
               <Button
@@ -294,6 +314,13 @@ export default function CanvasDetailScreen() {
             >
               {userSaved ? '★ Saved' : '☆ Save canvas'}
             </Button>
+            {joinError && (
+              <Alert status="warning">
+                <Alert.Content>
+                  <Alert.Description className="text-sm leading-snug">{joinError}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
           </div>
         </aside>
       </div>

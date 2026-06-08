@@ -70,7 +70,7 @@ with tgt(canvas_id, completed, active) as (values
   ('canvas-world-mosaic',81,0),('canvas-glyph-garden',100,0),('canvas-watercolor-garden',36,0),
   ('canvas-pixel-meadow',256,0),('canvas-jellyfish-bloom',25,0),('canvas-wildflower-grid',169,0),
   ('canvas-cosmic-splash',49,0),('canvas-bloom-creature',36,0),('canvas-bloom-spirits',25,0),
-  ('canvas-cosmic-bloom',41,8),('canvas-ocean-bloom',22,3),('canvas-city-jungle',11,8),
+  ('canvas-cosmic-bloom',41,4),('canvas-ocean-bloom',22,1),('canvas-city-jungle',11,8),
   ('canvas-festival-night',6,5),('canvas-myth-river',7,6),('canvas-portrait-tile',5,4),
   ('canvas-neon-tokyo',20,11),('canvas-cardboard-robot',4,3),('canvas-deep-time',3,2),
   ('canvas-quiet-sea',9,7)
