@@ -5,8 +5,8 @@ import DrawingScreen from './DrawingScreen'
 import { supabase } from '../lib/supabase'
 import { joinPrivateCanvas } from '../services/privateCanvasService'
 import { getTilesForCanvas, completeTileAndMaybeReveal, uploadTileArtwork } from '../services/tileService'
+import { MosaicProgress } from '../components/canvas/MosaicProgress'
 import { Heading } from '../components/ui/Heading'
-import { Eyebrow } from '../components/ui/Eyebrow'
 import type { Canvas, Tile } from '../types/domain'
 
 type Phase = 'joining' | 'drawing' | 'done' | 'error'
@@ -55,7 +55,9 @@ export default function PrivateJoinScreen() {
   if (!guestToken) return <Panel title="Invalid link" body="This invite link is not valid." />
   if (phase === 'joining') return <Centered><Spinner size="lg" /><p className="mt-4 text-sm text-[var(--muted)]">Joining…</p></Centered>
   if (phase === 'error') return <Panel title="Couldn't join" body={errorMsg} action={{ label: 'Back to start', onPress: () => nav('/') }} />
-  if (phase === 'done') return <DonePanel canvas={canvas} />
+  if (phase === 'done' && canvas) {
+    return <MosaicProgress canvas={canvas} myTileId={tile?.id} onLeave={() => nav('/')} />
+  }
 
   if (!canvas || !tile) return <Panel title="Something went wrong" body="Your artboard could not be loaded." />
 
@@ -95,25 +97,6 @@ function Panel({ title, body, action }: { title: string; body: string; action?: 
         {action && (
           <Button variant="primary" size="md" className="mt-6" onPress={action.onPress}>{action.label}</Button>
         )}
-      </Surface>
-    </Centered>
-  )
-}
-
-function DonePanel({ canvas }: { canvas: Canvas | null }) {
-  const nav = useNavigate()
-  return (
-    <Centered>
-      <Surface variant="secondary" className="rounded-[var(--radius)] p-8 max-w-md flex flex-col items-center">
-        <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[var(--success)] text-[var(--success-foreground)] mb-4">
-          <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-        </span>
-        <Eyebrow variant="dot">Submitted</Eyebrow>
-        <Heading level={1} size="md" className="mt-2">Your tile is in the mosaic.</Heading>
-        <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
-          Thanks for contributing to "{canvas?.title ?? 'this canvas'}". When everyone finishes, the full mosaic is revealed.
-        </p>
-        <Button variant="secondary" size="md" className="mt-6" onPress={() => nav('/')}>Done</Button>
       </Surface>
     </Centered>
   )
