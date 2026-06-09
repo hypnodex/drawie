@@ -116,6 +116,10 @@ export interface RendererBackend {
    *  Canvas2D GCs and omits it). The engine calls it on temp compose surfaces. */
   dispose?(): void
 
+  /** Present buffered drawing to the display (Skia software surface → canvas).
+   *  Canvas2D draws immediately and omits it. The host calls it after draws. */
+  flush?(): void
+
   // ── texture mask ───────────────────────────────────────────────────────────
   /**
    * Destination-in mask the rect [rectX,rectY,w,h] of THIS surface with the given

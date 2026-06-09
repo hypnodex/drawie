@@ -47,6 +47,7 @@ All headless via Playwright + a Vite dev server; replay logic lives in `replay.t
 | `smoke-draw.mjs` | **Phase 3 interactive smoke test.** Drives a real pointer stroke on the live `/draw` editor, then undo + redo, asserting layer ink moves correctly (draw → commit → re-render → undo/redo). |
 | `ck-smoke.mjs` | **Phase 4 de-risk.** Loads CanvasKit (WASM) headlessly, draws + reads back a pixel. (Confirmed `readPixels` is on `Canvas`, not `Surface`, in 0.41.1.) |
 | `skia-golden.mjs` | **Phase 4 Skia golden.** Renders the corpus through the StrokeEngine→SkiaBackend (CanvasKit) and diffs vs baseline. Writes `PARITY-SKIA.json`. |
+| `smoke-draw-skia.mjs` | **Phase 4 Skia app smoke.** Drives `/draw?skia=1` (waits for CanvasKit), draw → undo → redo — proves the live editor renders through Skia. |
 | `diag.mjs` | Root-cause helper: reports the diff bbox / worst pixel / magnitude histogram for a case. |
 
 ```bash
@@ -99,8 +100,13 @@ engine + seeds, so any difference is purely Skia-vs-Canvas2D rasterisation:
   keeps the effects faithful. SkSL re-expression of waterdrop/smudge remains a perf optimisation.
 
 Done in Phase 4: `SkiaBackend` + headless golden proof that all 11 tools render via Skia within
-tolerance. Remaining: wire `apps/web` to render via Skia behind a flag (CanvasKit surface bound to
-the display canvas), optional SkSL, edge tuning.
+tolerance, **and** `apps/web` wired to render via Skia behind a flag — **`/draw?skia=1`** (or
+`localStorage drawie.skia=1`). CanvasKit loads lazily (code-split JS chunk + the 7 MB wasm fetched
+only when enabled — default users stay on Canvas2D and download neither). Each layer binds a Skia
+software surface (`MakeSWCanvasSurface`) that flushes to its `<canvas>`. Verified end-to-end by
+`smoke-draw-skia.mjs` (draw → undo → redo through Skia). Remaining: make Skia the default (a go/no-go
+once perf is profiled), optional SkSL re-expression (perf), eraser/smudge edge tuning, and legacy
+raster-draft backgrounds in Skia mode.
 
 ## Files
 

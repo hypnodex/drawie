@@ -9,10 +9,12 @@ import {
 } from 'react'
 import {
   StrokeEngine, type InputPoint, analyzeShape, generateShapePath, smoothFreeform, ShapeKind,
-  replayStroke, type ModelStroke, type StrokeSample, type DrawDocument,
+  replayStroke, type ModelStroke, type StrokeSample, type DrawDocument, type RendererBackend,
   AssistSettings, Layer, ToolId, ToolSettings,
 } from '@drawie/core'
-import { Canvas2DBackend } from '@drawie/renderer'
+import { Canvas2DBackend, SkiaBackend } from '@drawie/renderer'
+import type { CanvasKit } from 'canvaskit-wasm'
+import { isSkiaEnabled, loadCanvasKit } from '../skiaRuntime'
 import neighborImg1 from '../other/magnific_use-the-uploaded-image-as_DBPw5U3pcl.png'
 import neighborImg2 from '../other/magnific_use-the-uploaded-image-as_LUtXzDgswO.png'
 import neighborImg3 from '../other/magnific_use-the-uploaded-image-as_nTgxpMKYQD.png'
@@ -128,6 +130,17 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   // Optional flattened background per layer (legacy raster drafts that have no strokes).
   const layerBackground = useRef<Map<string, HTMLImageElement>>(new Map())
 
+  // Skia render path (opt-in via ?skia=1). When CanvasKit is loaded, each layer's
+  // drawing goes through a SkiaBackend bound to its <canvas> (software surface).
+  // Default users stay on Canvas2D and never load CanvasKit.
+  const ckRef = useRef<CanvasKit | null>(null)
+  const [, setSkiaReady] = useState(false)
+  const skiaBackends = useRef<Map<string, { el: HTMLCanvasElement; backend: SkiaBackend }>>(new Map())
+  const usingSkia = () => isSkiaEnabled() && !!ckRef.current
+  /** Backend driving the in-progress stroke (so move/tick/end can flush it). */
+  const strokeBackend = useRef<RendererBackend | null>(null)
+  const strokeUsedSkia = useRef(false)
+
   // In-progress stroke capture.
   const currentSamples = useRef<StrokeSample[]>([])
   const currentTicks = useRef<number[]>([])
@@ -159,17 +172,51 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   // ── model helpers ──────────────────────────────────────────────────────────
   const getStrokes = useCallback((id: string) => layerStrokes.current.get(id) ?? [], [])
 
-  const rerenderLayer = useCallback((layerId: string) => {
+  // Load CanvasKit lazily when the Skia path is enabled.
+  useEffect(() => {
+    if (!isSkiaEnabled()) return
+    let alive = true
+    loadCanvasKit().then((ck) => { if (alive) { ckRef.current = ck; setSkiaReady(true) } }).catch(() => {})
+    return () => {
+      alive = false
+      for (const { backend } of skiaBackends.current.values()) backend.dispose?.()
+      skiaBackends.current.clear()
+    }
+  }, [])
+
+  /** The RendererBackend for a layer — a Skia surface bound to its canvas (when
+   *  enabled + loaded), else a Canvas2D wrapper. Skia backends are cached per layer. */
+  const backendFor = useCallback((layerId: string): RendererBackend | null => {
     const c = layerCanvasRefs.current.get(layerId)
-    if (!c) return
+    if (!c) return null
+    if (isSkiaEnabled() && ckRef.current) {
+      const cached = skiaBackends.current.get(layerId)
+      if (cached && cached.el === c) return cached.backend
+      cached?.backend.dispose?.()
+      const surface = ckRef.current.MakeSWCanvasSurface(c)
+      if (surface) {
+        const backend = new SkiaBackend(ckRef.current, surface)
+        skiaBackends.current.set(layerId, { el: c, backend })
+        return backend
+      }
+    }
     const ctx = c.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
-    ctx.clearRect(0, 0, c.width, c.height)
+    return ctx ? new Canvas2DBackend(ctx) : null
+  }, [])
+
+  const rerenderLayer = useCallback((layerId: string) => {
+    const backend = backendFor(layerId)
+    if (!backend) return
+    backend.clear()
+    // Legacy raster background — Canvas2D only (SkiaBackend can't blit an HTMLImage).
     const bg = layerBackground.current.get(layerId)
-    if (bg) ctx.drawImage(bg, 0, 0, c.width, c.height)
-    const backend = new Canvas2DBackend(ctx)
+    if (bg && !usingSkia()) {
+      const c = layerCanvasRefs.current.get(layerId)!
+      c.getContext('2d', { willReadFrequently: true })!.drawImage(bg, 0, 0, c.width, c.height)
+    }
     for (const s of getStrokes(layerId)) replayStroke(backend, s)
-  }, [getStrokes])
+    backend.flush?.()
+  }, [backendFor, getStrokes])
 
   const notifyHistory = useCallback(() => {
     const id = activeLayerIdRef.current
@@ -235,16 +282,15 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       ticks: [],
     }
     rerenderLayer(layerId)                       // committed strokes only (drops rough stroke)
-    const c = layerCanvasRefs.current.get(layerId)
-    const ctx = c?.getContext('2d', { willReadFrequently: true })
-    if (ctx) replayStroke(new Canvas2DBackend(ctx), shapeStroke)
+    const backend = backendFor(layerId)
+    if (backend) { replayStroke(backend, shapeStroke); backend.flush?.() }
     recordUndo(layerId)
     layerStrokes.current.set(layerId, [...getStrokes(layerId), shapeStroke])
     notifyHistory()
     if (detected) onShapeRef.current?.(detected.kind)
     else onShapeRef.current?.('freeform')
     return true
-  }, [rerenderLayer, recordUndo, getStrokes, notifyHistory])
+  }, [rerenderLayer, backendFor, recordUndo, getStrokes, notifyHistory])
 
   /** Commit the just-drawn freehand stroke (already painted live) into the model. */
   const commitFreehandStroke = useCallback((layerId: string) => {
@@ -270,7 +316,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const eng = engineRef.current
     if (!ctx || !eng) return
     snappedDuringStroke.current = true
-    ctx.restore()                 // unwind the live-draw clip from begin()
+    if (!strokeUsedSkia.current) ctx.restore()   // unwind the Canvas2D live-draw clip
     eng.end()
     runShapeAssist(activeLayerIdRef.current, eng.getRawPoints())
   }, [getActiveCtx, runShapeAssist])
@@ -288,6 +334,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const now = performance.now()
     eng.tick(now)
     currentTicks.current.push(now - strokeStartT.current)
+    strokeBackend.current?.flush?.()
     rafRef.current = requestAnimationFrame(tickLoop)
   }, [triggerHoldSnap])
 
@@ -386,6 +433,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     if (activePointerId.current !== null) return
     const ctx = getActiveCtx()
     if (!ctx) return
+    if (isSkiaEnabled() && !ckRef.current) return  // Skia mode: wait for CanvasKit before drawing
     if (!stageRef.current) return
     const wrap = wrapRef.current
     if (!wrap) return
@@ -408,16 +456,25 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       t: now,
     }
     currentSamples.current = [{ x, y, pressure: ip.pressure, hasPressure: ip.hasPressure, tiltX: e.tiltX, tiltY: e.tiltY, t: 0 }]
-    // Live draw on the active layer via the shared engine + Canvas2DBackend.
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    ctx.clip()
-    engineRef.current = new StrokeEngine(new Canvas2DBackend(ctx), tool, settings, assist, currentSeed.current)
+    // Live draw on the active layer via the shared engine + its RendererBackend
+    // (Skia surface when enabled, else Canvas2D). The Canvas2D clip bounds drawing
+    // to the artboard; the Skia surface is intrinsically bounded to its size.
+    const backend = backendFor(activeLayerId)
+    if (!backend) { activePointerId.current = null; return }
+    strokeBackend.current = backend
+    strokeUsedSkia.current = usingSkia()
+    if (!strokeUsedSkia.current) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+      ctx.clip()
+    }
+    engineRef.current = new StrokeEngine(backend, tool, settings, assist, currentSeed.current)
     engineRef.current.begin(ip)
+    backend.flush?.()
     if (rafRef.current == null) rafRef.current = requestAnimationFrame(tickLoop)
     onStrokeStart?.()
-  }, [tool, settings, assist, toInternal, onStrokeStart, getActiveCtx, tickLoop, popoverOpen, onDismissPopover])
+  }, [tool, settings, assist, toInternal, onStrokeStart, getActiveCtx, backendFor, tickLoop, popoverOpen, onDismissPopover])
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerId.current !== e.pointerId) return
@@ -437,6 +494,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       eng.extend(ip)
       currentSamples.current.push({ x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now - strokeStartT.current })
     }
+    strokeBackend.current?.flush?.()
   }, [toInternal])
 
   const finishStroke = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -451,8 +509,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     // If a hold-snap already fired mid-stroke, we already unwound the clip and
     // committed the snapped shape; just clean up here.
     if (!snappedDuringStroke.current) {
-      if (ctx) ctx.restore()                  // unwind the clip from begin
+      if (ctx && !strokeUsedSkia.current) ctx.restore()   // unwind the Canvas2D clip from begin
       eng?.end()
+      strokeBackend.current?.flush?.()
       // Shape assist on release ONLY when hold-to-snap mode is off; otherwise a
       // normal release leaves the rough stroke. Falls through to a freehand commit.
       const snapped = (eng && assistRef.current.shapeAssist && !assistRef.current.holdToSnap)
@@ -465,6 +524,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     lastInputAt.current = 0
     activePointerId.current = null
     engineRef.current = null
+    strokeBackend.current = null
     currentSamples.current = []
     currentTicks.current = []
     if (rafRef.current != null) {

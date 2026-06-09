@@ -204,6 +204,11 @@ export class SkiaBackend implements RendererBackend {
     img.delete()
   }
 
+  /** Present the surface to its backing canvas (software surface) / flush GPU work. */
+  flush() {
+    this.surface.flush()
+  }
+
   /** Free WASM-side resources. Call on temp surfaces after use (web app / native). */
   dispose() {
     this.paint.delete()
