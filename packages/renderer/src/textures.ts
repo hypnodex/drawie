@@ -26,6 +26,30 @@ export function getTextureCanvas(id: BrushTexture): HTMLCanvasElement | null {
   return c
 }
 
+/**
+ * The raw grain as a DOM-free RGBA pixel block (R=G=B=255, A=grain) — used by the
+ * Skia backend to build texture masks without a <canvas>. Generated from the SAME
+ * seeded sequence as makeTexture(), so the Skia grain is byte-identical to Canvas2D's.
+ */
+const pixelCache = new Map<BrushTexture, Uint8ClampedArray>()
+export function getTexturePixels(id: BrushTexture): { data: Uint8ClampedArray; size: number } | null {
+  if (id === 'none') return null
+  let data = pixelCache.get(id)
+  if (!data) {
+    data = new Uint8ClampedArray(SIZE * SIZE * 4)
+    const rand = mulberry32(hashStringToSeed(`texture:${id}`))
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const i = (y * SIZE + x) * 4
+        data[i] = 255; data[i + 1] = 255; data[i + 2] = 255
+        data[i + 3] = alphaFor(id, x, y, rand)
+      }
+    }
+    pixelCache.set(id, data)
+  }
+  return { data, size: SIZE }
+}
+
 function makeTexture(id: BrushTexture): HTMLCanvasElement {
   const c = document.createElement('canvas')
   c.width = SIZE

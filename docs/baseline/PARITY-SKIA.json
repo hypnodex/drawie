@@ -1,0 +1,211 @@
+{
+  "cases": [
+    {
+      "id": "brush-default-scurve-ramp",
+      "meanAbs": 0.0120435,
+      "maxAbs": 6,
+      "pctDiff": 0,
+      "inkRatio": 1,
+      "tool": "brush",
+      "stochastic": false
+    },
+    {
+      "id": "brush-blending-over-coral",
+      "meanAbs": 0.040447083333333335,
+      "maxAbs": 10,
+      "pctDiff": 0,
+      "inkRatio": 0.9999094820563263,
+      "tool": "brush",
+      "stochastic": false
+    },
+    {
+      "id": "brush-buildup-overstroke",
+      "meanAbs": 0.0435425,
+      "maxAbs": 18,
+      "pctDiff": 0.000225,
+      "inkRatio": 0.9972243425161335,
+      "tool": "brush",
+      "stochastic": false
+    },
+    {
+      "id": "brush-texture-canvas-hswipe",
+      "meanAbs": 0.00630475,
+      "maxAbs": 6,
+      "pctDiff": 0,
+      "inkRatio": 1,
+      "tool": "brush",
+      "stochastic": true
+    },
+    {
+      "id": "brush-wet-hswipe-high",
+      "meanAbs": 0.0166275,
+      "maxAbs": 6,
+      "pctDiff": 0,
+      "inkRatio": 1,
+      "tool": "brush",
+      "stochastic": false
+    },
+    {
+      "id": "pen-hswipe-med",
+      "meanAbs": 0.00527725,
+      "maxAbs": 8,
+      "pctDiff": 0,
+      "inkRatio": 1,
+      "tool": "pen",
+      "stochastic": false
+    },
+    {
+      "id": "pen-scurve-ramp",
+      "meanAbs": 0.005248,
+      "maxAbs": 11,
+      "pctDiff": 0,
+      "inkRatio": 0.9954900781719784,
+      "tool": "pen",
+      "stochastic": false
+    },
+    {
+      "id": "pencil-hswipe-low",
+      "meanAbs": 0.002506,
+      "maxAbs": 10,
+      "pctDiff": 0,
+      "inkRatio": 0.9963738920225625,
+      "tool": "pencil",
+      "stochastic": true
+    },
+    {
+      "id": "pencil-hswipe-med",
+      "meanAbs": 0.0033326666666666665,
+      "maxAbs": 11,
+      "pctDiff": 0,
+      "inkRatio": 0.9924385633270321,
+      "tool": "pencil",
+      "stochastic": true
+    },
+    {
+      "id": "pencil-hswipe-high",
+      "meanAbs": 0.004091083333333334,
+      "maxAbs": 10,
+      "pctDiff": 0,
+      "inkRatio": 0.9967637540453075,
+      "tool": "pencil",
+      "stochastic": true
+    },
+    {
+      "id": "marker-hswipe-med",
+      "meanAbs": 0.08487275,
+      "maxAbs": 18,
+      "pctDiff": 0.023125,
+      "inkRatio": 1,
+      "tool": "marker",
+      "stochastic": false
+    },
+    {
+      "id": "marker-overlap-cross",
+      "meanAbs": 0.1444185,
+      "maxAbs": 45,
+      "pctDiff": 0.06317500000000001,
+      "inkRatio": 0,
+      "tool": "marker",
+      "stochastic": false
+    },
+    {
+      "id": "watercolor-scurve-med",
+      "meanAbs": 0.01838675,
+      "maxAbs": 10,
+      "pctDiff": 0,
+      "inkRatio": 1,
+      "tool": "watercolor",
+      "stochastic": false
+    },
+    {
+      "id": "watercolor-dwell-pool",
+      "meanAbs": 0.25346,
+      "maxAbs": 67,
+      "pctDiff": 0.639075,
+      "inkRatio": 0,
+      "tool": "watercolor",
+      "stochastic": false
+    },
+    {
+      "id": "drybrush-dryness-low-diag",
+      "meanAbs": 0.012447833333333333,
+      "maxAbs": 5,
+      "pctDiff": 0,
+      "inkRatio": 0.9975526707810173,
+      "tool": "drybrush",
+      "stochastic": true
+    },
+    {
+      "id": "drybrush-dryness-high-diag",
+      "meanAbs": 0.008412583333333333,
+      "maxAbs": 5,
+      "pctDiff": 0,
+      "inkRatio": 0.9970136832056398,
+      "tool": "drybrush",
+      "stochastic": true
+    },
+    {
+      "id": "inkbrush-default-scurve-high",
+      "meanAbs": 0.04682008333333333,
+      "maxAbs": 8,
+      "pctDiff": 0,
+      "inkRatio": 0.9998102663170968,
+      "tool": "inkbrush",
+      "stochastic": true
+    },
+    {
+      "id": "spray-density-low-hswipe",
+      "meanAbs": 0.00024675,
+      "maxAbs": 2,
+      "pctDiff": 0,
+      "inkRatio": 0.9930291508238277,
+      "tool": "spray",
+      "stochastic": true
+    },
+    {
+      "id": "spray-density-high-hswipe",
+      "meanAbs": 0.0014541666666666668,
+      "maxAbs": 4,
+      "pctDiff": 0,
+      "inkRatio": 0.9926378978366746,
+      "tool": "spray",
+      "stochastic": true
+    },
+    {
+      "id": "eraser-soft-over-fill",
+      "meanAbs": 1.177197,
+      "maxAbs": 56,
+      "pctDiff": 3.837575,
+      "inkRatio": 0.904356809844834,
+      "tool": "eraser",
+      "stochastic": false
+    },
+    {
+      "id": "smudge-across-boundary",
+      "meanAbs": 1.51476575,
+      "maxAbs": 81,
+      "pctDiff": 4.0644,
+      "inkRatio": 0.9215852534562212,
+      "tool": "smudge",
+      "stochastic": false
+    },
+    {
+      "id": "waterdrop-water-only-over-fill",
+      "meanAbs": 0.0314205,
+      "maxAbs": 5,
+      "pctDiff": 0,
+      "inkRatio": 0.9999765543031646,
+      "tool": "waterdrop",
+      "stochastic": false
+    },
+    {
+      "id": "waterdrop-ink-over-fill",
+      "meanAbs": 0.032315666666666666,
+      "maxAbs": 5,
+      "pctDiff": 0,
+      "inkRatio": 0.9999824204672639,
+      "tool": "waterdrop",
+      "stochastic": false
+    }
+  ]
+}

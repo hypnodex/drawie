@@ -45,6 +45,8 @@ All headless via Playwright + a Vite dev server; replay logic lives in `replay.t
 | `oldnew.mjs` | **Faithfulness proof.** Renders every case with BOTH the pre-migration engine (`_old/engine.ts`, restored from git) and the refactored engine, and diffs them directly — independent of the stored PNGs. |
 | `modelcheck.mjs` | **Phase 3 model round-trip.** Renders each main stroke by driving the engine directly vs. by capturing it into a retained `ModelStroke` and `replayStroke`-ing it; asserts they're identical (incl. watercolor dwell ticks). 23/23 at meanAbs 0.0000. |
 | `smoke-draw.mjs` | **Phase 3 interactive smoke test.** Drives a real pointer stroke on the live `/draw` editor, then undo + redo, asserting layer ink moves correctly (draw → commit → re-render → undo/redo). |
+| `ck-smoke.mjs` | **Phase 4 de-risk.** Loads CanvasKit (WASM) headlessly, draws + reads back a pixel. (Confirmed `readPixels` is on `Canvas`, not `Surface`, in 0.41.1.) |
+| `skia-golden.mjs` | **Phase 4 Skia golden.** Renders the corpus through the StrokeEngine→SkiaBackend (CanvasKit) and diffs vs baseline. Writes `PARITY-SKIA.json`. |
 | `diag.mjs` | Root-cause helper: reports the diff bbox / worst pixel / magnitude histogram for a case. |
 
 ```bash
@@ -82,9 +84,27 @@ Beyond per-tool marks, record that these behaviors are unchanged vs. this commit
 - **Tool/palette restriction** — a canvas with `allowedTools` / `colorPalette` restricts the toolbar + color picker.
 - **Shape assist** (off by default) — when enabled, end-of-stroke snapping to line/circle/etc. via `shapes.ts`.
 
+## Phase 4 Skia parity result
+
+`SkiaBackend` (CanvasKit/WASM) implements the same `RendererBackend` as `Canvas2DBackend`;
+`skia-golden.mjs` renders the corpus through it and diffs vs the (Canvas2D) baseline. Same
+engine + seeds, so any difference is purely Skia-vs-Canvas2D rasterisation:
+
+- **Deterministic tools: avg meanAbs 0.24/255 (0.09%), worst 1.5/255 (smudge soft-mask edge).**
+- **waterdrop: 0.03/255 — essentially identical** (its per-pixel displacement/blur is portable
+  TS on a `PixelRegion`, so only the soft dest-in mask edge differs).
+- pen/brush/marker/watercolor/spray/pencil all ≤ ~0.25/255.
+- Largest gaps are eraser/smudge (~1.2–1.5, ≤4% of pixels at >16) — soft destination-out/in
+  mask antialiasing. Within tolerance; tunable later. **No SkSL was needed** — the readback path
+  keeps the effects faithful. SkSL re-expression of waterdrop/smudge remains a perf optimisation.
+
+Done in Phase 4: `SkiaBackend` + headless golden proof that all 11 tools render via Skia within
+tolerance. Remaining: wire `apps/web` to render via Skia behind a flag (CanvasKit surface bound to
+the display canvas), optional SkSL, edge tuning.
+
 ## Files
 
 - `stroke-corpus.json` — deterministic input corpus (tools × paths × pressure × settings).
 - `DEPLOYMENT_SNAPSHOT.md` — live URLs, refs, backup locations (no secrets).
 - `captures/` — rendered reference PNGs (23/23, deterministic) + `MANIFEST.json`.
-- `PARITY.json` — latest `compare.mjs` per-case metrics.
+- `PARITY.json` — latest `compare.mjs` (Canvas2D) metrics · `PARITY-SKIA.json` — `skia-golden.mjs` (Skia) metrics.

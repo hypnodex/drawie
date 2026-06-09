@@ -191,6 +191,8 @@ export class StrokeEngine {
     this.hasPrevStamp = false
     this.dwellAnchor = null
     this.dwellGrowth = 0
+    this.tempStamp?.dispose?.()
+    this.tempStamp = null
   }
 
   /** Raw input points (untouched by realtime smoothing) — used for post-stroke refinement. */
@@ -449,6 +451,7 @@ export class StrokeEngine {
   ) {
     const stampDia = Math.max(6, Math.ceil(r * 2.5))
     if (!this.tempStamp || this.tempStamp.width !== stampDia) {
+      this.tempStamp?.dispose?.()
       this.tempStamp = this.backend.createSurface(stampDia, stampDia)
     }
     const temp = this.tempStamp
@@ -546,6 +549,7 @@ export class StrokeEngine {
       'destination-in',
     )
     this.backend.drawSurface(tmp, p.x - size / 2, p.y - size / 2, undefined, strength * 0.8)
+    tmp.dispose?.()
     // Re-capture from the new spot for next step
     this.captureSmudgeBuffer(p.x + dx * 0.3, p.y + dy * 0.3, r)
   }
@@ -781,6 +785,7 @@ export class StrokeEngine {
       'destination-in',
     )
     this.backend.drawSurface(tmp, x0, y0)
+    tmp.dispose?.()
 
     // Ink tint — skipped in water-only mode.
     if (this.settings.color !== 'transparent') {

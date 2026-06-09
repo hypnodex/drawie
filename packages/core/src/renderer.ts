@@ -112,6 +112,10 @@ export interface RendererBackend {
   /** Clear the whole surface to transparent. */
   clear(): void
 
+  /** Release backend resources for a throwaway surface (Skia/native need this;
+   *  Canvas2D GCs and omits it). The engine calls it on temp compose surfaces. */
+  dispose?(): void
+
   // ── texture mask ───────────────────────────────────────────────────────────
   /**
    * Destination-in mask the rect [rectX,rectY,w,h] of THIS surface with the given
