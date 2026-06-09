@@ -48,6 +48,8 @@ export interface InputPoint {
   y: number
   pressure: number   // 0..1; meaningful only when hasPressure is true
   hasPressure: boolean
+  tiltX?: number     // stylus tilt (-90..90); retained in the model for native pens
+  tiltY?: number     // (the current engine ignores tilt — captured for the future)
   t: number          // ms timestamp (absolute)
 }
 

@@ -4,26 +4,37 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
-import { StrokeEngine, type InputPoint, analyzeShape, generateShapePath, smoothFreeform, ShapeKind } from '@drawie/core'
+import {
+  StrokeEngine, type InputPoint, analyzeShape, generateShapePath, smoothFreeform, ShapeKind,
+  replayStroke, type ModelStroke, type StrokeSample, type DrawDocument,
+  AssistSettings, Layer, ToolId, ToolSettings,
+} from '@drawie/core'
 import { Canvas2DBackend } from '@drawie/renderer'
 import neighborImg1 from '../other/magnific_use-the-uploaded-image-as_DBPw5U3pcl.png'
 import neighborImg2 from '../other/magnific_use-the-uploaded-image-as_LUtXzDgswO.png'
 import neighborImg3 from '../other/magnific_use-the-uploaded-image-as_nTgxpMKYQD.png'
 import neighborImg4 from '../other/magnific_use-the-uploaded-image-as_y6FfZGzPW9.png'
-import { AssistSettings, Layer, ToolId, ToolSettings } from '@drawie/core'
 
 export interface CanvasHandle {
-  takeLayerSnapshot: (layerId: string) => ImageData | null
-  restoreLayerSnapshot: (layerId: string, snap: ImageData) => void
+  // ── model-driven history (per layer) ──
+  undo: (layerId: string) => void
+  redo: (layerId: string) => void
+  canUndo: (layerId: string) => boolean
+  canRedo: (layerId: string) => boolean
   clearLayer: (layerId: string) => void
   mergeIntoLayer: (sourceId: string, targetId: string) => void
+  // ── persistence (vector model) ──
+  getDocument: () => DrawDocument
+  loadDocument: (doc: DrawDocument) => void
+  /** Legacy raster draft: paint a flattened image as a layer's background. The
+   *  layer keeps no strokes (cannot re-derive them); new strokes draw on top. */
+  loadLayerImage: (layerId: string, dataURL: string) => Promise<void>
+  // ── export ──
   getCompositeCanvas: () => HTMLCanvasElement
-  getLayerDataURL: (layerId: string) => string | null
-  loadLayerFromDataURL: (layerId: string, dataURL: string) => Promise<void>
+  // ── zoom ──
   zoomIn: () => void
   zoomOut: () => void
   zoomFit: () => void
@@ -49,6 +60,9 @@ interface Props {
   onStrokeStart?: () => void
   onStrokeEnd?: () => void
   onShapeDetected?: (kind: ShapeKind) => void
+  /** Fired after any model mutation (draw / undo / redo / clear / merge / load)
+   *  so the host can refresh undo/redo enablement for the active layer. */
+  onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void
   /** Active tile's position in the canvas grid + grid size. When provided,
    *  neighbour slivers on grid edges are hidden (no tile exists there). When
    *  omitted (e.g. the standalone /draw sandbox), all 8 neighbours show. */
@@ -76,8 +90,12 @@ const NEIGHBOR_IMAGES = [neighborImg1, neighborImg2, neighborImg3, neighborImg4]
 // transform scales it visually. Higher = crisper strokes at zoom.
 const INTERNAL_SIZE = 2000
 
+// Cap on retained undo snapshots per layer. A snapshot is just an array of stroke
+// references (no pixels), so this is cheap memory-wise.
+const MAX_UNDO = 80
+
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { tool, settings, assist, layers, activeLayerId, onZoomChange, largeNeighbors = false, popoverOpen, onDismissPopover, onStrokeStart, onStrokeEnd, onShapeDetected, tileRow, tileCol, gridRows, gridCols },
+  { tool, settings, assist, layers, activeLayerId, onZoomChange, largeNeighbors = false, popoverOpen, onDismissPopover, onStrokeStart, onStrokeEnd, onShapeDetected, onHistoryChange, tileRow, tileCol, gridRows, gridCols },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -101,13 +119,24 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const scrollAdjust = useRef<{ left: number; top: number } | null>(null)
   const zoomInitialized = useRef(false)
 
+  // ── Document model (source of truth) ──────────────────────────────────────
+  // Per-layer ordered strokes, plus undo/redo snapshot stacks (arrays of stroke
+  // refs — no pixels). The <canvas> elements are a render cache of these strokes.
+  const layerStrokes = useRef<Map<string, ModelStroke[]>>(new Map())
+  const layerUndo = useRef<Map<string, ModelStroke[][]>>(new Map())
+  const layerRedo = useRef<Map<string, ModelStroke[][]>>(new Map())
+  // Optional flattened background per layer (legacy raster drafts that have no strokes).
+  const layerBackground = useRef<Map<string, HTMLImageElement>>(new Map())
+
+  // In-progress stroke capture.
+  const currentSamples = useRef<StrokeSample[]>([])
+  const currentTicks = useRef<number[]>([])
+  const strokeStartT = useRef(0)
+  const currentSeed = useRef(1)
 
   const engineRef = useRef<StrokeEngine | null>(null)
   const activePointerId = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
-  /** Snapshot of the active layer taken at stroke start so we can restore +
-   *  replay a clean shape when assist.shapeAssist is on. */
-  const preStrokeSnap = useRef<ImageData | null>(null)
   /** Timestamp of the last pointermove — used for hold-to-snap detection. */
   const lastInputAt = useRef<number>(0)
   /** True once the current stroke has been shape-snapped mid-stroke. */
@@ -122,6 +151,44 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const toolRef = useRef(tool)
   const settingsRef = useRef(settings)
   useEffect(() => { toolRef.current = tool; settingsRef.current = settings }, [tool, settings])
+  /** Active-layer + history-callback refs so model callbacks read current values. */
+  const activeLayerIdRef = useRef(activeLayerId)
+  const onHistoryChangeRef = useRef(onHistoryChange)
+  useEffect(() => { onHistoryChangeRef.current = onHistoryChange }, [onHistoryChange])
+
+  // ── model helpers ──────────────────────────────────────────────────────────
+  const getStrokes = useCallback((id: string) => layerStrokes.current.get(id) ?? [], [])
+
+  const rerenderLayer = useCallback((layerId: string) => {
+    const c = layerCanvasRefs.current.get(layerId)
+    if (!c) return
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
+    ctx.clearRect(0, 0, c.width, c.height)
+    const bg = layerBackground.current.get(layerId)
+    if (bg) ctx.drawImage(bg, 0, 0, c.width, c.height)
+    const backend = new Canvas2DBackend(ctx)
+    for (const s of getStrokes(layerId)) replayStroke(backend, s)
+  }, [getStrokes])
+
+  const notifyHistory = useCallback(() => {
+    const id = activeLayerIdRef.current
+    onHistoryChangeRef.current?.(
+      (layerUndo.current.get(id)?.length ?? 0) > 0,
+      (layerRedo.current.get(id)?.length ?? 0) > 0,
+    )
+  }, [])
+
+  /** Snapshot current strokes onto the undo stack and clear redo (call BEFORE mutating). */
+  const recordUndo = useCallback((id: string) => {
+    const u = layerUndo.current.get(id) ?? []
+    u.push(getStrokes(id))
+    if (u.length > MAX_UNDO) u.shift()
+    layerUndo.current.set(id, u)
+    layerRedo.current.set(id, [])
+  }, [getStrokes])
+
+  useEffect(() => { activeLayerIdRef.current = activeLayerId; notifyHistory() }, [activeLayerId, notifyHistory])
 
   const getActiveCtx = useCallback((): CanvasRenderingContext2D | null => {
     const c = layerCanvasRefs.current.get(activeLayerId)
@@ -129,36 +196,72 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     return c.getContext('2d', { willReadFrequently: true })
   }, [activeLayerId])
 
-  /** Run shape-assist analysis + replay on the current ctx / engine. */
-  const runShapeAssist = useCallback((ctx: CanvasRenderingContext2D, eng: StrokeEngine) => {
+  /** Convert captured InputPoints into model samples (with tilt, t rel. to start). */
+  const inputToSamples = (pts: InputPoint[]): StrokeSample[] => {
+    const t0 = pts[0]?.t ?? 0
+    return pts.map((p) => ({
+      x: p.x, y: p.y, pressure: p.pressure, hasPressure: p.hasPressure,
+      tiltX: p.tiltX, tiltY: p.tiltY, t: p.t - t0,
+    }))
+  }
+
+  /**
+   * Shape-assist: analyse the raw points, regenerate a clean shape (or smoothed
+   * freeform) path, then re-render the active layer from its committed strokes
+   * (erasing the rough in-progress stroke) and commit the generated shape as a
+   * single retained stroke. No pixel snapshot needed — the model IS the pre-stroke state.
+   */
+  const runShapeAssist = useCallback((layerId: string, raw: InputPoint[]) => {
     const a = assistRef.current
-    if (!a.shapeAssist) return
-    if (!preStrokeSnap.current) return
-    const raw = eng.getRawPoints()
-    if (raw.length < 3) return
+    if (!a.shapeAssist) return false
+    if (raw.length < 3) return false
     const detected = analyzeShape(raw, { strength: a.shapeStrength, perfect: a.perfectShape })
     const replayPath = detected
       ? generateShapePath(detected, raw, a.perfectShape)
       : smoothFreeform(raw, a.shapeStrength)
-    if (replayPath.length < 2) return
-    ctx.putImageData(preStrokeSnap.current, 0, 0)
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    ctx.clip()
-    const replay = new StrokeEngine(new Canvas2DBackend(ctx), toolRef.current, settingsRef.current, {
-      stabilize: false, stabilizeStrength: 0,
-      shapeAssist: false, shapeStrength: 0,
-      perfectShape: false, holdToSnap: false, holdDelay: 0,
-      bypassInputSmoothing: true,
-    }, (Math.random() * 0xffffffff) >>> 0)
-    replay.begin(replayPath[0])
-    for (let i = 1; i < replayPath.length; i++) replay.extend(replayPath[i])
-    replay.end()
-    ctx.restore()
+    if (replayPath.length < 2) return false
+
+    const shapeStroke: ModelStroke = {
+      toolId: toolRef.current,
+      settings: settingsRef.current,
+      assist: {
+        stabilize: false, stabilizeStrength: 0,
+        shapeAssist: false, shapeStrength: 0,
+        perfectShape: false, holdToSnap: false, holdDelay: 0,
+        bypassInputSmoothing: true,
+      },
+      seed: (Math.random() * 0xffffffff) >>> 0,
+      samples: inputToSamples(replayPath),
+      ticks: [],
+    }
+    rerenderLayer(layerId)                       // committed strokes only (drops rough stroke)
+    const c = layerCanvasRefs.current.get(layerId)
+    const ctx = c?.getContext('2d', { willReadFrequently: true })
+    if (ctx) replayStroke(new Canvas2DBackend(ctx), shapeStroke)
+    recordUndo(layerId)
+    layerStrokes.current.set(layerId, [...getStrokes(layerId), shapeStroke])
+    notifyHistory()
     if (detected) onShapeRef.current?.(detected.kind)
     else onShapeRef.current?.('freeform')
-  }, [])
+    return true
+  }, [rerenderLayer, recordUndo, getStrokes, notifyHistory])
+
+  /** Commit the just-drawn freehand stroke (already painted live) into the model. */
+  const commitFreehandStroke = useCallback((layerId: string) => {
+    const samples = currentSamples.current
+    if (samples.length === 0) return
+    const stroke: ModelStroke = {
+      toolId: toolRef.current,
+      settings: settingsRef.current,
+      assist: assistRef.current,
+      seed: currentSeed.current,
+      samples,
+      ticks: toolRef.current === 'watercolor' ? currentTicks.current : undefined,
+    }
+    recordUndo(layerId)
+    layerStrokes.current.set(layerId, [...getStrokes(layerId), stroke])
+    notifyHistory()
+  }, [recordUndo, getStrokes, notifyHistory])
 
   /** Mid-stroke "hold-to-snap" trigger: end engine + run shape assist now. */
   const triggerHoldSnap = useCallback(() => {
@@ -167,12 +270,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     const eng = engineRef.current
     if (!ctx || !eng) return
     snappedDuringStroke.current = true
-    // Unwind the clip from begin(), end the engine cleanly
-    ctx.restore()
+    ctx.restore()                 // unwind the live-draw clip from begin()
     eng.end()
-    runShapeAssist(ctx, eng)
-    // We deliberately leave pointer capture intact — further movement is
-    // ignored (see onPointerMove guard) until the user lifts the pointer.
+    runShapeAssist(activeLayerIdRef.current, eng.getRawPoints())
   }, [getActiveCtx, runShapeAssist])
 
   const tickLoop = useCallback(() => {
@@ -185,7 +285,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
         triggerHoldSnap()
       }
     }
-    eng.tick(performance.now())
+    const now = performance.now()
+    eng.tick(now)
+    currentTicks.current.push(now - strokeStartT.current)
     rafRef.current = requestAnimationFrame(tickLoop)
   }, [triggerHoldSnap])
 
@@ -253,8 +355,6 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     wrap.scrollTop  = adj.top
   }, [zoom])
 
-  // Drop history-tracked layers from refs when their canvas unmounts is handled by callback ref below.
-
   const toInternal = useCallback((clientX: number, clientY: number) => {
     const stage = stageRef.current
     if (!stage) return { x: 0, y: 0 }
@@ -294,30 +394,26 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     e.preventDefault()
     const { x, y } = toInternal(e.clientX, e.clientY)
     snappedDuringStroke.current = false
-    lastInputAt.current = performance.now()
-    // Snapshot before any pixels are drawn — needed for shape-assist replay
-    if (assist.shapeAssist) {
-      try {
-        preStrokeSnap.current = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
-      } catch { preStrokeSnap.current = null }
-    } else {
-      preStrokeSnap.current = null
-    }
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    ctx.clip()
-    // Per-stroke seed → the engine's randomness (pencil/spray/bristles) is
-    // deterministic given this seed; Phase 3 will persist it in the stroke model
-    // so a stroke replays identically. A fresh seed per stroke keeps visual variety.
-    const seed = (Math.random() * 0xffffffff) >>> 0
-    engineRef.current = new StrokeEngine(new Canvas2DBackend(ctx), tool, settings, assist, seed)
+    const now = performance.now()
+    lastInputAt.current = now
+    // Begin model capture for this stroke.
+    strokeStartT.current = now
+    currentTicks.current = []
+    currentSeed.current = (Math.random() * 0xffffffff) >>> 0
     const ip: InputPoint = {
       x, y,
       pressure: e.pressure,
       hasPressure: (e.pointerType !== 'mouse') && e.pressure > 0,
-      t: performance.now(),
+      tiltX: e.tiltX, tiltY: e.tiltY,
+      t: now,
     }
+    currentSamples.current = [{ x, y, pressure: ip.pressure, hasPressure: ip.hasPressure, tiltX: e.tiltX, tiltY: e.tiltY, t: 0 }]
+    // Live draw on the active layer via the shared engine + Canvas2DBackend.
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    ctx.clip()
+    engineRef.current = new StrokeEngine(new Canvas2DBackend(ctx), tool, settings, assist, currentSeed.current)
     engineRef.current.begin(ip)
     if (rafRef.current == null) rafRef.current = requestAnimationFrame(tickLoop)
     onStrokeStart?.()
@@ -336,13 +432,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     lastInputAt.current = now
     for (const ev of events) {
       const { x, y } = toInternal(ev.clientX, ev.clientY)
-      const ip: InputPoint = {
-        x, y,
-        pressure: ev.pressure,
-        hasPressure: (ev.pointerType !== 'mouse') && ev.pressure > 0,
-        t: now,
-      }
+      const hasPressure = (ev.pointerType !== 'mouse') && ev.pressure > 0
+      const ip: InputPoint = { x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now }
       eng.extend(ip)
+      currentSamples.current.push({ x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now - strokeStartT.current })
     }
   }, [toInternal])
 
@@ -354,56 +447,102 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     }
     const ctx = getActiveCtx()
     const eng = engineRef.current
+    const layerId = activeLayerIdRef.current
     // If a hold-snap already fired mid-stroke, we already unwound the clip and
-    // ran the assist; just clean up here.
+    // committed the snapped shape; just clean up here.
     if (!snappedDuringStroke.current) {
       if (ctx) ctx.restore()                  // unwind the clip from begin
       eng?.end()
-      // Run shape assist on release ONLY when hold-to-snap mode is off. When
-      // hold-to-snap is on, a normal release leaves the rough stroke alone.
-      if (eng && ctx && assist.shapeAssist && !assist.holdToSnap) {
-        runShapeAssist(ctx, eng)
-      }
+      // Shape assist on release ONLY when hold-to-snap mode is off; otherwise a
+      // normal release leaves the rough stroke. Falls through to a freehand commit.
+      const snapped = (eng && assistRef.current.shapeAssist && !assistRef.current.holdToSnap)
+        ? runShapeAssist(layerId, eng.getRawPoints())
+        : false
+      if (!snapped) commitFreehandStroke(layerId)
     }
-    preStrokeSnap.current = null
+
     snappedDuringStroke.current = false
     lastInputAt.current = 0
-
     activePointerId.current = null
     engineRef.current = null
+    currentSamples.current = []
+    currentTicks.current = []
     if (rafRef.current != null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
     onStrokeEnd?.()
-  }, [onStrokeEnd, getActiveCtx, assist, runShapeAssist])
+  }, [onStrokeEnd, getActiveCtx, runShapeAssist, commitFreehandStroke])
 
-  // Imperative API — operates on whatever layer id is given.
+  // Imperative API — model-driven.
   useImperativeHandle(ref, () => ({
-    takeLayerSnapshot: (layerId: string) => {
-      const c = layerCanvasRefs.current.get(layerId)
-      if (!c) return null
-      return c.getContext('2d')!.getImageData(0, 0, c.width, c.height)
+    undo: (layerId: string) => {
+      const u = layerUndo.current.get(layerId)
+      if (!u || u.length === 0) return
+      const r = layerRedo.current.get(layerId) ?? []
+      r.push(getStrokes(layerId))
+      layerRedo.current.set(layerId, r)
+      layerStrokes.current.set(layerId, u.pop()!)
+      rerenderLayer(layerId)
+      notifyHistory()
     },
-    restoreLayerSnapshot: (layerId: string, snap: ImageData) => {
-      const c = layerCanvasRefs.current.get(layerId)
-      if (!c) return
-      const ctx = c.getContext('2d')!
-      ctx.clearRect(0, 0, c.width, c.height)
-      ctx.putImageData(snap, 0, 0)
+    redo: (layerId: string) => {
+      const r = layerRedo.current.get(layerId)
+      if (!r || r.length === 0) return
+      const u = layerUndo.current.get(layerId) ?? []
+      u.push(getStrokes(layerId))
+      layerUndo.current.set(layerId, u)
+      layerStrokes.current.set(layerId, r.pop()!)
+      rerenderLayer(layerId)
+      notifyHistory()
     },
+    canUndo: (layerId: string) => (layerUndo.current.get(layerId)?.length ?? 0) > 0,
+    canRedo: (layerId: string) => (layerRedo.current.get(layerId)?.length ?? 0) > 0,
     clearLayer: (layerId: string) => {
-      const c = layerCanvasRefs.current.get(layerId)
-      if (!c) return
-      const ctx = c.getContext('2d')!
-      ctx.clearRect(0, 0, c.width, c.height)
+      recordUndo(layerId)
+      layerStrokes.current.set(layerId, [])
+      layerBackground.current.delete(layerId)
+      rerenderLayer(layerId)
+      notifyHistory()
     },
     mergeIntoLayer: (sourceId: string, targetId: string) => {
-      const src = layerCanvasRefs.current.get(sourceId)
-      const dst = layerCanvasRefs.current.get(targetId)
-      if (!src || !dst) return
-      const ctx = dst.getContext('2d')!
-      ctx.drawImage(src, 0, 0)
+      recordUndo(targetId)
+      layerStrokes.current.set(targetId, [...getStrokes(targetId), ...getStrokes(sourceId)])
+      layerStrokes.current.delete(sourceId)
+      layerUndo.current.delete(sourceId)
+      layerRedo.current.delete(sourceId)
+      layerBackground.current.delete(sourceId)
+      rerenderLayer(targetId)
+      notifyHistory()
+    },
+    getDocument: (): DrawDocument => ({
+      version: 1,
+      width: INTERNAL_SIZE,
+      height: INTERNAL_SIZE,
+      layers: layers.map((l) => ({ id: l.id, name: l.name, visible: l.visible, strokes: getStrokes(l.id) })),
+    }),
+    loadDocument: (doc: DrawDocument) => {
+      for (const dl of doc.layers) {
+        layerStrokes.current.set(dl.id, dl.strokes ?? [])
+        layerUndo.current.set(dl.id, [])
+        layerRedo.current.set(dl.id, [])
+        layerBackground.current.delete(dl.id)
+        rerenderLayer(dl.id)
+      }
+      notifyHistory()
+    },
+    loadLayerImage: (layerId: string, dataURL: string) => {
+      return new Promise<void>((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          layerBackground.current.set(layerId, img)
+          layerStrokes.current.set(layerId, [])
+          rerenderLayer(layerId)
+          resolve()
+        }
+        img.onerror = () => reject(new Error('Image decode failed'))
+        img.src = dataURL
+      })
     },
     getCompositeCanvas: () => {
       const tmp = document.createElement('canvas')
@@ -417,31 +556,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       }
       return tmp
     },
-    getLayerDataURL: (layerId: string) => {
-      const c = layerCanvasRefs.current.get(layerId)
-      if (!c) return null
-      try { return c.toDataURL('image/webp', 0.85) } catch { return null }
-    },
     zoomIn:  () => { const next = Math.min(5, zoom * 1.25);    setZoom(next); onZoomChangeRef.current?.(next) },
     zoomOut: () => { const next = Math.max(0.1, zoom / 1.25); setZoom(next); onZoomChangeRef.current?.(next) },
     zoomFit: () => { setZoom(fitZoom); onZoomChangeRef.current?.(fitZoom) },
     getZoom: () => zoom,
-    loadLayerFromDataURL: (layerId: string, dataURL: string) => {
-      const c = layerCanvasRefs.current.get(layerId)
-      if (!c) return Promise.resolve()
-      return new Promise<void>((resolve, reject) => {
-        const img = new Image()
-        img.onload = () => {
-          const ctx = c.getContext('2d')!
-          ctx.clearRect(0, 0, c.width, c.height)
-          ctx.drawImage(img, 0, 0)
-          resolve()
-        }
-        img.onerror = () => reject(new Error('Image decode failed'))
-        img.src = dataURL
-      })
-    },
-  }), [layers, zoom, fitZoom])
+  }), [layers, zoom, fitZoom, getStrokes, rerenderLayer, recordUndo, notifyHistory])
 
   // Layout — slivers that show the inner edge of each neighbor mock tile.
   // (sliver and stageSize are declared at the top of the component so callbacks
@@ -568,4 +687,3 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     </div>
   )
 })
-

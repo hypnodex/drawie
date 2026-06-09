@@ -8,7 +8,6 @@ import { MosaicReveal } from '../components/editor/MosaicReveal'
 import { SaveIcon, SendIcon, CheckCircleIcon } from '../components/icons'
 import { AssistSettings, Layer, ToolId, ToolSettingsMap } from '@drawie/core'
 import type { Canvas as CanvasDomain, Tile } from '@drawie/data'
-import { useHistory } from '../hooks/useHistory'
 import {
   clearSession, loadSession, saveSession,
   SavedSession, DEFAULT_SESSION_KEY,
@@ -101,7 +100,8 @@ export default function DrawingScreen({
   const layerSeq = useRef(2)
 
   const canvasRef = useRef<CanvasHandle>(null)
-  const history = useHistory(10)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
 
   // Restore saved session on first mount
   useEffect(() => {
@@ -111,14 +111,23 @@ export default function DrawingScreen({
     setTool(s.tool)
     setSecondaryColor(s.secondaryColor)
     setRecentColors(s.recentColors)
-    setLayers(s.layers.map(({ dataURL: _, ...rest }) => rest))
     setActiveLayerId(s.activeLayerId)
-    const t = window.setTimeout(() => {
-      s.layers.forEach(({ id, dataURL }) => {
-        canvasRef.current?.loadLayerFromDataURL(id, dataURL).catch(() => {})
-      })
-    }, 60)
-    return () => window.clearTimeout(t)
+    if (s.document) {
+      // Vector draft — set layer metadata then replay the model.
+      setLayers(s.document.layers.map(({ id, name, visible }) => ({ id, name, visible })))
+      const t = window.setTimeout(() => canvasRef.current?.loadDocument(s.document!), 60)
+      return () => window.clearTimeout(t)
+    }
+    if (s.layers) {
+      // Legacy raster draft — paint each layer's WebP as a flattened background.
+      setLayers(s.layers.map(({ dataURL: _, ...rest }) => rest))
+      const t = window.setTimeout(() => {
+        s.layers!.forEach(({ id, dataURL }) => {
+          canvasRef.current?.loadLayerImage(id, dataURL).catch(() => {})
+        })
+      }, 60)
+      return () => window.clearTimeout(t)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -201,30 +210,18 @@ export default function DrawingScreen({
     setLayers((prev) => prev.map((l) => l.id === id ? { ...l, visible: !l.visible } : l))
   }, [])
 
-  // ── History (undo / redo / clear) ──
-  const snapshot = useCallback(() => {
-    const snap = canvasRef.current?.takeLayerSnapshot(activeLayerId)
-    if (snap) history.push(activeLayerId, snap)
-  }, [activeLayerId, history])
-
+  // ── History (model-level undo / redo / clear, per active layer) ──
   const onUndo = useCallback(() => {
-    const current = canvasRef.current?.takeLayerSnapshot(activeLayerId)
-    if (!current) return
-    const prev = history.undo(activeLayerId, current)
-    if (prev) canvasRef.current?.restoreLayerSnapshot(activeLayerId, prev)
-  }, [activeLayerId, history])
+    canvasRef.current?.undo(activeLayerId)
+  }, [activeLayerId])
 
   const onRedo = useCallback(() => {
-    const current = canvasRef.current?.takeLayerSnapshot(activeLayerId)
-    if (!current) return
-    const next = history.redo(activeLayerId, current)
-    if (next) canvasRef.current?.restoreLayerSnapshot(activeLayerId, next)
-  }, [activeLayerId, history])
+    canvasRef.current?.redo(activeLayerId)
+  }, [activeLayerId])
 
   const onClear = useCallback(() => {
-    snapshot()
     canvasRef.current?.clearLayer(activeLayerId)
-  }, [activeLayerId, snapshot])
+  }, [activeLayerId])
 
   // ── Coverage gauge (debounced) ──
   const recomputeCoverage = useCallback(() => {
@@ -255,17 +252,14 @@ export default function DrawingScreen({
 
   // ── Save / Submit ──
   const persistSession = useCallback(() => {
-    const layersData = layers.map((l) => ({
-      id: l.id, name: l.name, visible: l.visible,
-      dataURL: canvasRef.current?.getLayerDataURL(l.id) ?? '',
-    }))
+    const document = canvasRef.current?.getDocument()
     const session: SavedSession = {
-      layers: layersData, activeLayerId, tool, settingsMap, secondaryColor, recentColors,
+      document, activeLayerId, tool, settingsMap, secondaryColor, recentColors,
       assist: DEFAULT_ASSIST, theme: 'light',
       timeRemainingSec: 0, savedAt: Date.now(),
     }
     saveSession(session, sessionKey)
-  }, [layers, activeLayerId, tool, settingsMap, secondaryColor, recentColors, sessionKey])
+  }, [activeLayerId, tool, settingsMap, secondaryColor, recentColors, sessionKey])
 
   const handleSaveConfirmed = useCallback(async () => {
     if (!(await passesModeration())) { setSaveConfirmOpen(false); return }
@@ -386,8 +380,8 @@ export default function DrawingScreen({
           activeLayerId={activeLayerId}
           popoverOpen={popover !== null}
           onDismissPopover={() => setPopover(null)}
-          onStrokeStart={snapshot}
           onStrokeEnd={recomputeCoverage}
+          onHistoryChange={(u, r) => { setCanUndo(u); setCanRedo(r) }}
           onZoomChange={(z) => setDisplayZoom(Math.round(z * 100))}
           tileRow={tile?.row}
           tileCol={tile?.col}
@@ -421,8 +415,8 @@ export default function DrawingScreen({
             else { setTool(id); setPopover('tool') }
           }}
           onPopoverOutsideClose={() => setPopover(null)}
-          canUndo={history.canUndo(activeLayerId)}
-          canRedo={history.canRedo(activeLayerId)}
+          canUndo={canUndo}
+          canRedo={canRedo}
           onUndo={onUndo}
           onRedo={onRedo}
           onClear={onClear}

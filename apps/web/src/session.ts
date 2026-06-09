@@ -1,9 +1,11 @@
-import type { AssistSettings, Layer, ToolId, ToolSettingsMap } from '@drawie/core'
+import type { AssistSettings, ToolId, ToolSettingsMap, DrawDocument } from '@drawie/core'
 
 /**
- * Lightweight session persistence to localStorage. Layer canvases are
- * serialized as WebP data URLs (small + good quality vs PNG). Anything that
- * can be regenerated from defaults is not persisted.
+ * Lightweight session persistence to localStorage. As of Phase 3 a draft stores
+ * the **vector document model** (`document`) — small, resolution-independent, and
+ * re-renderable. Legacy drafts that stored layer canvases as WebP data URLs
+ * (`layers`) are still read: they paint as a flattened background (their strokes
+ * cannot be re-derived). Anything regenerable from defaults is not persisted.
  */
 
 /** Legacy single-canvas key. The drawing screen now accepts a per-tile key
@@ -19,7 +21,10 @@ export interface SavedLayer {
 }
 
 export interface SavedSession {
-  layers: SavedLayer[]
+  /** Vector model (preferred, Phase 3+). */
+  document?: DrawDocument
+  /** Legacy raster layers (WebP data URLs). Read-only fallback for old drafts. */
+  layers?: SavedLayer[]
   activeLayerId: string
   tool: ToolId
   settingsMap: ToolSettingsMap

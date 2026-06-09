@@ -43,6 +43,8 @@ All headless via Playwright + a Vite dev server; replay logic lives in `replay.t
 | `run.mjs` | Capture/refresh `captures/*.png` by replaying the corpus through the current engine. |
 | `compare.mjs` | **Regression guard.** Replay the corpus and diff each case vs its stored capture. Deterministic tools asserted to a tight pixel tolerance; stochastic tools to ink-coverage proximity. Writes `PARITY.json`. |
 | `oldnew.mjs` | **Faithfulness proof.** Renders every case with BOTH the pre-migration engine (`_old/engine.ts`, restored from git) and the refactored engine, and diffs them directly — independent of the stored PNGs. |
+| `modelcheck.mjs` | **Phase 3 model round-trip.** Renders each main stroke by driving the engine directly vs. by capturing it into a retained `ModelStroke` and `replayStroke`-ing it; asserts they're identical (incl. watercolor dwell ticks). 23/23 at meanAbs 0.0000. |
+| `smoke-draw.mjs` | **Phase 3 interactive smoke test.** Drives a real pointer stroke on the live `/draw` editor, then undo + redo, asserting layer ink moves correctly (draw → commit → re-render → undo/redo). |
 | `diag.mjs` | Root-cause helper: reports the diff bbox / worst pixel / magnitude histogram for a case. |
 
 ```bash
