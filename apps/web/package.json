@@ -12,6 +12,7 @@
   "dependencies": {
     "@drawie/core": "*",
     "@drawie/data": "*",
+    "@drawie/renderer": "*",
     "@heroui/react": "^3.0.0",
     "@heroui/styles": "^3.0.0",
     "@supabase/supabase-js": "^2.107.0",

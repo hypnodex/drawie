@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { BRUSH_TEXTURES, BrushShape, BrushTexture, ToolId, ToolSettings as ToolSettingsType } from '@drawie/core'
 import { ColorPicker } from './ColorPicker'
 import { PressureIcon, WetIcon, BuildUpIcon } from '../icons'
-import { getTextureCanvas } from '../../drawing/textures'
+import { getTextureCanvas } from '@drawie/renderer'
 
 interface Props {
   tool: ToolId

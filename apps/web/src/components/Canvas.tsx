@@ -8,8 +8,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { StrokeEngine, InputPoint } from '../drawing/engine'
-import { analyzeShape, generateShapePath, smoothFreeform, ShapeKind } from '@drawie/core'
+import { StrokeEngine, type InputPoint, analyzeShape, generateShapePath, smoothFreeform, ShapeKind } from '@drawie/core'
+import { Canvas2DBackend } from '@drawie/renderer'
 import neighborImg1 from '../other/magnific_use-the-uploaded-image-as_DBPw5U3pcl.png'
 import neighborImg2 from '../other/magnific_use-the-uploaded-image-as_LUtXzDgswO.png'
 import neighborImg3 from '../other/magnific_use-the-uploaded-image-as_nTgxpMKYQD.png'
@@ -146,12 +146,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     ctx.beginPath()
     ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
     ctx.clip()
-    const replay = new StrokeEngine(ctx, toolRef.current, settingsRef.current, {
+    const replay = new StrokeEngine(new Canvas2DBackend(ctx), toolRef.current, settingsRef.current, {
       stabilize: false, stabilizeStrength: 0,
       shapeAssist: false, shapeStrength: 0,
       perfectShape: false, holdToSnap: false, holdDelay: 0,
       bypassInputSmoothing: true,
-    })
+    }, (Math.random() * 0xffffffff) >>> 0)
     replay.begin(replayPath[0])
     for (let i = 1; i < replayPath.length; i++) replay.extend(replayPath[i])
     replay.end()
@@ -307,7 +307,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     ctx.beginPath()
     ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
     ctx.clip()
-    engineRef.current = new StrokeEngine(ctx, tool, settings, assist)
+    // Per-stroke seed → the engine's randomness (pencil/spray/bristles) is
+    // deterministic given this seed; Phase 3 will persist it in the stroke model
+    // so a stroke replays identically. A fresh seed per stroke keeps visual variety.
+    const seed = (Math.random() * 0xffffffff) >>> 0
+    engineRef.current = new StrokeEngine(new Canvas2DBackend(ctx), tool, settings, assist, seed)
     const ip: InputPoint = {
       x, y,
       pressure: e.pressure,

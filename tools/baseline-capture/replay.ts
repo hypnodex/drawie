@@ -11,8 +11,15 @@
  * the same replay is meant to be reused as the Phase 6 golden-image CI seed
  * (replay a corpus model through web-Skia and native-Skia and diff).
  */
-import { StrokeEngine, type InputPoint } from '../../src/drawing/engine'
-import type { ToolId, ToolSettings, ToolSettingsMap, AssistSettings } from '../../src/types'
+import { StrokeEngine, type InputPoint } from '@drawie/core'
+import type { ToolId, ToolSettings, ToolSettingsMap, AssistSettings } from '@drawie/core'
+import { Canvas2DBackend } from '@drawie/renderer'
+
+// Fixed seed so the harness is reproducible run-to-run. (The Phase 0 baseline was
+// captured with the pre-migration engine's unseeded Math.random, so stochastic
+// tools — pencil/spray/drybrush/inkbrush — won't pixel-match; they're verified by
+// ink-coverage instead. Deterministic tools don't draw from the rng at all.)
+const HARNESS_SEED = 0x9e3779b9
 
 // ── Defaults ────────────────────────────────────────────────────────────────
 // Mirror of `DEFAULT_SETTINGS` in src/screens/DrawingScreen.tsx and `DEFAULT_ASSIST`
@@ -86,7 +93,7 @@ function drawOneStroke(ctx: CanvasRenderingContext2D, corpus: Corpus, spec: Stro
   if (!path) throw new Error(`unknown path "${spec.path}"`)
   if (!profile) throw new Error(`unknown pressure profile "${spec.pressure}"`)
   const dt = corpus.generator.sampleDtMs
-  const eng = new StrokeEngine(ctx, spec.tool, settings, DEFAULT_ASSIST)
+  const eng = new StrokeEngine(new Canvas2DBackend(ctx), spec.tool, settings, DEFAULT_ASSIST, HARNESS_SEED)
 
   let t = 0
   if (path.type === 'dwell') {
