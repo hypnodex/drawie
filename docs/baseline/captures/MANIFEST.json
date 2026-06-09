@@ -1,0 +1,98 @@
+{
+  "engineCommit": "fc2eeecd63d60825d392da0265590678a43943cc",
+  "count": 23,
+  "cases": [
+    {
+      "id": "brush-default-scurve-ramp",
+      "bytes": 133781
+    },
+    {
+      "id": "brush-blending-over-coral",
+      "bytes": 331367
+    },
+    {
+      "id": "brush-buildup-overstroke",
+      "bytes": 84562
+    },
+    {
+      "id": "brush-texture-canvas-hswipe",
+      "bytes": 84562
+    },
+    {
+      "id": "brush-wet-hswipe-high",
+      "bytes": 84562
+    },
+    {
+      "id": "pen-hswipe-med",
+      "bytes": 84562
+    },
+    {
+      "id": "pen-scurve-ramp",
+      "bytes": 84562
+    },
+    {
+      "id": "pencil-hswipe-low",
+      "bytes": 84562
+    },
+    {
+      "id": "pencil-hswipe-med",
+      "bytes": 84562
+    },
+    {
+      "id": "pencil-hswipe-high",
+      "bytes": 84562
+    },
+    {
+      "id": "marker-hswipe-med",
+      "bytes": 84562
+    },
+    {
+      "id": "marker-overlap-cross",
+      "bytes": 84562
+    },
+    {
+      "id": "watercolor-scurve-med",
+      "bytes": 84562
+    },
+    {
+      "id": "watercolor-dwell-pool",
+      "bytes": 84562
+    },
+    {
+      "id": "drybrush-dryness-low-diag",
+      "bytes": 84562
+    },
+    {
+      "id": "drybrush-dryness-high-diag",
+      "bytes": 84562
+    },
+    {
+      "id": "inkbrush-default-scurve-high",
+      "bytes": 84562
+    },
+    {
+      "id": "spray-density-low-hswipe",
+      "bytes": 84562
+    },
+    {
+      "id": "spray-density-high-hswipe",
+      "bytes": 84562
+    },
+    {
+      "id": "eraser-soft-over-fill",
+      "bytes": 84562
+    },
+    {
+      "id": "smudge-across-boundary",
+      "bytes": 84562
+    },
+    {
+      "id": "waterdrop-water-only-over-fill",
+      "bytes": 84562
+    },
+    {
+      "id": "waterdrop-ink-over-fill",
+      "bytes": 84562
+    }
+  ]
+}
