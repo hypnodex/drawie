@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Drawie",
+    "slug": "drawie",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "drawie",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.drawie.app"
+    },
+    "android": {
+      "package": "com.drawie.app"
+    },
+    "_comment": "Deep-link scheme `drawie://` is used for Supabase auth redirects (see NATIVE_PLAN.md). react-native-skia requires a custom dev client / prebuild — not Expo Go. Screens are wired with a simple App.tsx for now; swap in expo-router when the product screens are rebuilt."
+  }
+}

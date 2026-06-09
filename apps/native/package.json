@@ -1,0 +1,30 @@
+{
+  "name": "@drawie/native",
+  "version": "0.1.0",
+  "private": true,
+  "//": "Phase 5 — Expo / React Native app (iOS + Android). DELIBERATELY NOT in the root npm `workspaces` array (see root package.json) so installing its React-Native deps can't disturb the verified web build. Install + run this on a machine with the RN toolchain: `cd apps/native && npm install && npx expo run:ios` (custom dev client — react-native-skia 2.x does NOT run in Expo Go). Versions below are starting points; verify against the current Expo SDK before first build.",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@drawie/core": "*",
+    "@drawie/data": "*",
+    "expo": "~53.0.0",
+    "expo-status-bar": "~2.2.0",
+    "react": "19.0.0",
+    "react-native": "0.79.0",
+    "react-native-gesture-handler": "~2.24.0",
+    "@shopify/react-native-skia": "^2.6.4",
+    "@supabase/supabase-js": "^2.107.0",
+    "react-native-url-polyfill": "^2.0.0",
+    "@react-native-async-storage/async-storage": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.0.0",
+    "typescript": "^5.6.0"
+  }
+}
