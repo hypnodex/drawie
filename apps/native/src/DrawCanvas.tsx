@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
+} from 'react'
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -27,15 +29,40 @@ import { RNSkiaBackend } from './render/RNSkiaBackend'
  */
 
 const ARTBOARD = 2000
+const MAX_UNDO = 10 // pixel-checkpoint undo depth (≈16MB each at 2000²)
 
 const DEFAULT_ASSIST: AssistSettings = {
   stabilize: false, stabilizeStrength: 0.5, shapeAssist: false, shapeStrength: 0.6,
   perfectShape: true, holdToSnap: false, holdDelay: 500,
 }
 
-export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSettings }) {
+export type DrawCanvasHandle = { undo: () => void; redo: () => void; clear: () => void }
+
+type DrawCanvasProps = {
+  tool: ToolId
+  settings: ToolSettings
+  /** Fired after every history change (stroke end / undo / redo / clear) so the host can
+   *  enable or disable its undo/redo buttons. */
+  onHistory?: (h: { canUndo: boolean; canRedo: boolean }) => void
+}
+
+export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function DrawCanvas(
+  { tool, settings, onHistory }, ref,
+) {
   const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true), [])
   const strokes = useRef<ModelStroke[]>([])
+  // Undo/redo as pixel checkpoints for INSTANT restore — model-replay was O(strokes) and felt
+  // slow. undoSnaps[0] is the blank canvas; each committed stroke pushes a full-surface snapshot,
+  // bounded to MAX_UNDO+1 (older states drop off rather than replay). strokes/redoStrokes keep the
+  // vector model in sync for save/submit. Restore = backend.restoreFrom(snapshot) — a single blit.
+  const undoSnaps = useRef<SkImage[]>([])
+  const redoSnaps = useRef<SkImage[]>([])
+  const redoStrokes = useRef<ModelStroke[]>([])
+  // Read the latest onHistory without re-subscribing the imperative handlers to it.
+  const onHistoryRef = useRef(onHistory)
+  onHistoryRef.current = onHistory
+  const notifyHistory = () =>
+    onHistoryRef.current?.({ canUndo: undoSnaps.current.length > 1, canRedo: redoSnaps.current.length > 0 })
   const layout = useRef({ w: 1, h: 1 })
   const [dims, setDims] = useState({ w: 0, h: 0 })
 
@@ -105,14 +132,19 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     setDims({ w: width, h: height })
   }
 
-  // Free native resources when this canvas unmounts (e.g. the Clear remount). `alive` is
-  // flipped first so an in-flight rAF bails before touching the now-disposed surface.
-  useEffect(() => () => {
-    alive.current = false
-    stopTick()
-    image.value?.dispose?.()
-    prevDisplay.current?.dispose?.()
-    backend.dispose?.()
+  // Seed the blank undo checkpoint on mount; free all native resources on unmount. `alive`
+  // is flipped first so an in-flight rAF bails before touching the now-disposed surface.
+  useEffect(() => {
+    undoSnaps.current = [backend.surface.makeImageSnapshot()]
+    return () => {
+      alive.current = false
+      stopTick()
+      image.value?.dispose?.()
+      prevDisplay.current?.dispose?.()
+      undoSnaps.current.forEach((s) => s.dispose())
+      redoSnaps.current.forEach((s) => s.dispose())
+      backend.dispose?.()
+    }
   }, [backend, image, stopTick])
 
   // ── engine driven incrementally from the gesture (JS thread) ────────────────
@@ -152,10 +184,55 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
         toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current,
         samples: samples.current, ticks: tool === 'watercolor' ? ticks.current : undefined,
       })
+      // checkpoint the new surface state for instant undo; drop the oldest beyond the cap
+      undoSnaps.current.push(backend.surface.makeImageSnapshot())
+      while (undoSnaps.current.length > MAX_UNDO + 1) undoSnaps.current.shift()!.dispose()
+      // a fresh stroke invalidates redo
+      redoSnaps.current.forEach((s) => s.dispose())
+      redoSnaps.current = []
+      redoStrokes.current = []
     }
     eng.current = null
     scheduleDisplay()
-  }, [tool, settings, scheduleDisplay, stopTick])
+    notifyHistory()
+  }, [tool, settings, backend, scheduleDisplay, stopTick])
+
+  // ── history (imperative; driven by the editor's undo/redo/clear buttons) ─────
+  // Instant: restore the previous/next pixel checkpoint with a single blit. The vector model
+  // (strokes/redoStrokes) moves in lockstep so save/submit stays correct. All no-ops mid-stroke.
+  const doUndo = useCallback(() => {
+    if (eng.current || undoSnaps.current.length <= 1) return
+    redoSnaps.current.push(undoSnaps.current.pop()!)
+    if (strokes.current.length) redoStrokes.current.push(strokes.current.pop()!)
+    backend.restoreFrom(undoSnaps.current[undoSnaps.current.length - 1])
+    scheduleDisplay()
+    notifyHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend, scheduleDisplay])
+  const doRedo = useCallback(() => {
+    if (eng.current || redoSnaps.current.length === 0) return
+    const snap = redoSnaps.current.pop()!
+    undoSnaps.current.push(snap)
+    if (redoStrokes.current.length) strokes.current.push(redoStrokes.current.pop()!)
+    backend.restoreFrom(snap)
+    scheduleDisplay()
+    notifyHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend, scheduleDisplay])
+  const doClear = useCallback(() => {
+    if (eng.current) return
+    undoSnaps.current.forEach((s) => s.dispose())
+    redoSnaps.current.forEach((s) => s.dispose())
+    strokes.current = []
+    redoStrokes.current = []
+    backend.clear()
+    undoSnaps.current = [backend.surface.makeImageSnapshot()]
+    redoSnaps.current = []
+    scheduleDisplay()
+    notifyHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend, scheduleDisplay])
+  useImperativeHandle(ref, () => ({ undo: doUndo, redo: doRedo, clear: doClear }), [doUndo, doRedo, doClear])
 
   // ── gesture (UI-thread worklets; one runOnJS per event) ─────────────────────
   const press = (e: { stylusData?: { pressure: number; tiltX: number; tiltY: number } }) => {
@@ -182,6 +259,6 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
       </GestureDetector>
     </View>
   )
-}
+})
 
 const styles = StyleSheet.create({ fill: { flex: 1, backgroundColor: '#fff' } })

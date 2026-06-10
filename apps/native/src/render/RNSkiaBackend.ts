@@ -3,7 +3,7 @@ import type {
 } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
-  type SkSurface, type SkCanvas, type SkPaint, type SkColor,
+  type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage,
 } from '@shopify/react-native-skia'
 import { getTexturePixels } from './textures'
 
@@ -174,6 +174,16 @@ export class RNSkiaBackend implements RendererBackend {
 
   clear() {
     this.skc.clear(Skia.Color('rgba(0,0,0,0)'))
+  }
+
+  /** Replace the whole surface with a previously captured snapshot (undo/redo restore). */
+  restoreFrom(img: SkImage) {
+    this.skc.clear(Skia.Color('rgba(0,0,0,0)'))
+    const p = this.paint
+    p.setShader(null)
+    p.setBlendMode(BlendMode.SrcOver)
+    p.setAlphaf(1)
+    this.skc.drawImage(img, 0, 0, p)
   }
 
   maskWithTexture(texture: BrushTexture, rectX: number, rectY: number, w: number, h: number, worldX: number, worldY: number) {

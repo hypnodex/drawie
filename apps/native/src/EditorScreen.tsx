@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import { DrawCanvas } from './DrawCanvas'
+import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
 import { ColorPalette } from './ui/ColorPalette'
@@ -15,7 +15,8 @@ import { ColorPalette } from './ui/ColorPalette'
 export function EditorScreen() {
   const [tool, setTool] = useState<ToolId>('brush')
   const [settingsMap, setSettingsMap] = useState<ToolSettingsMap>(DEFAULT_SETTINGS)
-  const [clearKey, setClearKey] = useState(0)
+  const [hist, setHist] = useState({ canUndo: false, canRedo: false })
+  const canvas = useRef<DrawCanvasHandle>(null)
 
   const active = settingsMap[tool]
   const patch = (p: Partial<ToolSettings>) =>
@@ -24,7 +25,7 @@ export function EditorScreen() {
   return (
     <View style={styles.fill}>
       <View style={styles.canvasWrap}>
-        <DrawCanvas key={clearKey} tool={tool} settings={active} />
+        <DrawCanvas ref={canvas} tool={tool} settings={active} onHistory={setHist} />
       </View>
 
       <View style={styles.panel}>
@@ -37,14 +38,20 @@ export function EditorScreen() {
         />
 
         <View style={styles.toolRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools}>
+          <Pressable onPress={() => canvas.current?.undo()} disabled={!hist.canUndo} style={[styles.action, !hist.canUndo && styles.actionOff]}>
+            <Text style={styles.actionText}>↶</Text>
+          </Pressable>
+          <Pressable onPress={() => canvas.current?.redo()} disabled={!hist.canRedo} style={[styles.action, !hist.canRedo && styles.actionOff]}>
+            <Text style={styles.actionText}>↷</Text>
+          </Pressable>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools} style={styles.toolsScroll}>
             {TOOL_IDS.map((id) => (
               <Pressable key={id} onPress={() => setTool(id)} style={[styles.tool, tool === id && styles.toolActive]}>
                 <Text style={[styles.toolText, tool === id && styles.toolTextActive]}>{id}</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable onPress={() => setClearKey((k) => k + 1)} style={styles.clear}>
+          <Pressable onPress={() => canvas.current?.clear()} style={styles.clear}>
             <Text style={styles.clearText}>Clear</Text>
           </Pressable>
         </View>
@@ -61,6 +68,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f4f4f6', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#ddd',
   },
   toolRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  action: { width: 38, height: 36, borderRadius: 10, marginRight: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e6e6ea' },
+  actionOff: { opacity: 0.35 },
+  actionText: { fontSize: 18, color: '#333', fontWeight: '700' },
+  toolsScroll: { flex: 1 },
   tools: { gap: 6, paddingRight: 8, alignItems: 'center' },
   tool: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#e6e6ea' },
   toolActive: { backgroundColor: '#7c8cff' },
