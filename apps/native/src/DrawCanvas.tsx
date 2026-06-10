@@ -82,24 +82,26 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
   }
 
   // ── engine driven incrementally from the gesture (JS thread) ────────────────
-  const begin = useCallback((vx: number, vy: number, pressure: number, has: boolean) => {
+  // tiltX/tiltY come from the pen's stylusData and are RETAINED in the model (the engine
+  // ignores tilt for now — closes the §9 gap; tools can use it later).
+  const begin = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
     const { x, y } = toArtboard(vx, vy)
     startT.current = Date.now()
     seed.current = (Math.random() * 0xffffffff) >>> 0
     eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current)
-    samples.current = [{ x, y, pressure, hasPressure: has, t: 0 }]
-    eng.current.begin({ x, y, pressure, hasPressure: has, t: 0 })
+    samples.current = [{ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 }]
+    eng.current.begin({ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 })
     scheduleDisplay()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, tool, settings, scheduleDisplay])
 
-  const move = useCallback((vx: number, vy: number, pressure: number, has: boolean) => {
+  const move = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
     const e = eng.current
     if (!e) return
     const { x, y } = toArtboard(vx, vy)
     const t = Date.now() - startT.current
-    e.extend({ x, y, pressure, hasPressure: has, t })
-    samples.current.push({ x, y, pressure, hasPressure: has, t })
+    e.extend({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
+    samples.current.push({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
     scheduleDisplay()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleDisplay])
@@ -116,15 +118,16 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
   }, [tool, settings, scheduleDisplay])
 
   // ── gesture (UI-thread worklets; one runOnJS per event) ─────────────────────
-  const press = (e: { stylusData?: { pressure: number } }) => {
+  const press = (e: { stylusData?: { pressure: number; tiltX: number; tiltY: number } }) => {
     'worklet'
-    const p = e.stylusData?.pressure
-    return { p: p != null && p > 0 ? p : 1, has: p != null && p > 0 }
+    const s = e.stylusData
+    const p = s?.pressure
+    return { p: p != null && p > 0 ? p : 1, has: p != null && p > 0, tiltX: s?.tiltX ?? 0, tiltY: s?.tiltY ?? 0 }
   }
   const pan = Gesture.Pan()
     .minDistance(0)
-    .onBegin((e) => { const { p, has } = press(e); runOnJS(begin)(e.x, e.y, p, has) })
-    .onUpdate((e) => { const { p, has } = press(e); runOnJS(move)(e.x, e.y, p, has) })
+    .onBegin((e) => { const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
+    .onUpdate((e) => { const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
     .onFinalize(() => { runOnJS(end)() }) // fires on lift AND cancel
 
   return (
