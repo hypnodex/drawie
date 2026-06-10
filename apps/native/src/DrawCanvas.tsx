@@ -50,9 +50,11 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
   const startT = useRef(0)
   const seed = useRef(1)
 
-  // Snapshot the surface to the display image, coalesced to ≤1/frame. Each snapshot is
-  // a native SkImage; dispose the one from 2 frames ago (the UI thread is safely past it)
-  // so display images don't accumulate.
+  // Snapshot the surface to the display image, coalesced to ≤1/frame. Dispose the image from
+  // 2 frames ago (the UI thread is safely past it) so display images don't accumulate. `alive`
+  // is flipped on unmount so a snapshot rAF already queued when Clear remounts bails out before
+  // touching the now-disposed surface ("access a disposed object").
+  const alive = useRef(true)
   const displayScheduled = useRef(false)
   const prevDisplay = useRef<SkImage | null>(null)
   const scheduleDisplay = useCallback(() => {
@@ -60,6 +62,7 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     displayScheduled.current = true
     requestAnimationFrame(() => {
       displayScheduled.current = false
+      if (!alive.current) return
       backend.flush()
       const snap = backend.surface.makeImageSnapshot()
       const toDispose = prevDisplay.current
@@ -102,8 +105,10 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     setDims({ w: width, h: height })
   }
 
-  // Free native resources when this canvas unmounts (e.g. the Clear remount).
+  // Free native resources when this canvas unmounts (e.g. the Clear remount). `alive` is
+  // flipped first so an in-flight rAF bails before touching the now-disposed surface.
   useEffect(() => () => {
+    alive.current = false
     stopTick()
     image.value?.dispose?.()
     prevDisplay.current?.dispose?.()
