@@ -1,29 +1,29 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native'
-import { Canvas, Image, Path, Skia, type SkImage, type SkPath } from '@shopify/react-native-skia'
+import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { useSharedValue, useDerivedValue, runOnJS } from 'react-native-reanimated'
+import { useSharedValue, runOnJS } from 'react-native-reanimated'
 import {
-  StrokeEngine, type InputPoint, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings,
+  StrokeEngine, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings,
   type AssistSettings,
 } from '@drawie/core'
 import { RNSkiaBackend } from './render/RNSkiaBackend'
 
 /**
- * Native drawing surface — low-latency input/render binding around the SHARED
- * @drawie/core engine (core untouched).
+ * Native drawing surface — WYSIWYG, low-latency, around the SHARED @drawie/core engine
+ * (core untouched).
  *
- *   - Input: react-native-gesture-handler Pan with worklet callbacks (UI thread).
- *     Pen pressure + tilt come from the event's `stylusData`. No JS-bridge hop per move.
- *   - Active stroke: a reactive Skia <Path> driven by a Reanimated shared value — it
- *     redraws on the UI thread every frame with NO React state / re-render on the hot path.
- *   - Committed strokes: on lift only (one runOnJS), the JS-thread @drawie/core engine
- *     renders the faithful stroke into an offscreen surface, cached as an <Image>. The
- *     scene is never replayed per move (split rendering).
+ *   - One persistent CPU/raster Skia surface that ACCUMULATES every stroke (no scene
+ *     replay per move; the engine just adds the new stamps).
+ *   - Input: gesture-handler Pan worklets (UI-thread capture) read pen pressure+tilt from
+ *     `stylusData`, then hop to JS once per event to extend the engine. The engine extend
+ *     is cheap; the surface→image snapshot is coalesced to one per frame (rAF).
+ *   - Display: the live surface image lives in a Reanimated shared value, so the on-screen
+ *     <Canvas> updates on the UI thread with NO React re-render. What you see while drawing
+ *     IS the engine's real stroke — identical to the finished result.
  *
- * The active <Path> is a fast preview; the committed image is the engine's exact output
- * (matches web /draw?skia=1). Predicted touches (Apple) aren't exposed by RNGH — a native
- * follow-up (NATIVE_PLAN.md).
+ * The surface is CPU-backed (Surface.Make) so the engine's per-stamp readback (brush
+ * build-up, blending, smudge, waterdrop) is cheap memory access, not a GPU snapshot.
  */
 
 const ARTBOARD = 2000
@@ -33,44 +33,40 @@ const DEFAULT_ASSIST: AssistSettings = {
   perfectShape: true, holdToSnap: false, holdDelay: 500,
 }
 
-type ViewPt = { x: number; y: number; pressure: number; has: boolean }
-
 export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSettings }) {
-  const backend = useMemo(() => {
-    // Transparent offscreen surface (the white paper is the View background). The engine
-    // renders committed strokes here; we snapshot it to a CPU image for display.
-    const surface = Skia.Surface.MakeOffscreen(ARTBOARD, ARTBOARD)!
-    return new RNSkiaBackend(surface)
-  }, [])
-
+  const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!), [])
   const strokes = useRef<ModelStroke[]>([])
   const layout = useRef({ w: 1, h: 1 })
   const [dims, setDims] = useState({ w: 0, h: 0 })
-  const [committed, setCommitted] = useState<SkImage | null>(null)
 
-  // ── active stroke (UI thread) ──────────────────────────────────────────────
-  const active = useSharedValue<ViewPt[]>([])
-  const vscale = useSharedValue(0.5) // artboard→view scale (min(view)/ARTBOARD)
+  // The live surface image (shared value → UI-thread <Image> updates, no React re-render).
+  const image = useSharedValue<SkImage | null>(backend.surface.makeImageSnapshot())
 
-  const activePath = useDerivedValue<SkPath>(() => {
-    const pts = active.value
-    const p = Skia.Path.Make()
-    if (pts.length > 0) {
-      p.moveTo(pts[0].x, pts[0].y)
-      for (let i = 1; i < pts.length; i++) p.lineTo(pts[i].x, pts[i].y)
-    }
-    return p
-  }, [active])
+  // Active-stroke state (JS thread).
+  const eng = useRef<StrokeEngine | null>(null)
+  const samples = useRef<StrokeSample[]>([])
+  const startT = useRef(0)
+  const seed = useRef(1)
 
-  // Preview width tracks the latest pen pressure, scaled like the engine's brush
-  // diameter (size·(0.35 + 0.65·pressure)) so it reads close to the committed stroke.
-  const previewWidth = useDerivedValue(() => {
-    const pts = active.value
-    const p = pts.length ? pts[pts.length - 1].pressure : 0.5
-    return settings.size * (0.35 + 0.65 * p) * vscale.value
-  }, [active])
+  // Snapshot the surface to the display image, coalesced to ≤1/frame. Each snapshot is
+  // a native SkImage; dispose the one from 2 frames ago (the UI thread is safely past it)
+  // so display images don't accumulate.
+  const displayScheduled = useRef(false)
+  const prevDisplay = useRef<SkImage | null>(null)
+  const scheduleDisplay = useCallback(() => {
+    if (displayScheduled.current) return
+    displayScheduled.current = true
+    requestAnimationFrame(() => {
+      displayScheduled.current = false
+      backend.flush()
+      const snap = backend.surface.makeImageSnapshot()
+      const toDispose = prevDisplay.current
+      prevDisplay.current = image.value
+      image.value = snap
+      toDispose?.dispose()
+    })
+  }, [backend, image])
 
-  // ── view ↔ artboard mapping (JS thread, used at commit) ─────────────────────
   const toArtboard = (vx: number, vy: number) => {
     const { w, h } = layout.current
     const s = Math.min(w, h) / ARTBOARD
@@ -83,60 +79,59 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     const { width, height } = e.nativeEvent.layout
     layout.current = { w: width, h: height }
     setDims({ w: width, h: height })
-    vscale.value = Math.min(width, height) / ARTBOARD
   }
 
-  // ── commit (JS thread, once per stroke) ─────────────────────────────────────
-  const commitStroke = useCallback((pts: ViewPt[]) => {
-    if (pts.length === 0) return
-    const seed = (Math.random() * 0xffffffff) >>> 0
-    const eng = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed)
-    const samples: StrokeSample[] = []
-    pts.forEach((pt, i) => {
-      const { x, y } = toArtboard(pt.x, pt.y)
-      const t = i * 8 // ~120Hz synthetic timing (pen pressure comes from stylusData, not speed)
-      const ip: InputPoint = { x, y, pressure: pt.pressure, hasPressure: pt.has, t }
-      i === 0 ? eng.begin(ip) : eng.extend(ip)
-      samples.push({ x, y, pressure: pt.pressure, hasPressure: pt.has, t })
-    })
-    eng.end()
-    strokes.current.push({ toolId: tool, settings, assist: DEFAULT_ASSIST, seed, samples })
-    backend.flush()
-    setCommitted(backend.surface.makeImageSnapshot().makeNonTextureImage())
-  }, [backend, tool, settings])
+  // ── engine driven incrementally from the gesture (JS thread) ────────────────
+  const begin = useCallback((vx: number, vy: number, pressure: number, has: boolean) => {
+    const { x, y } = toArtboard(vx, vy)
+    startT.current = Date.now()
+    seed.current = (Math.random() * 0xffffffff) >>> 0
+    eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current)
+    samples.current = [{ x, y, pressure, hasPressure: has, t: 0 }]
+    eng.current.begin({ x, y, pressure, hasPressure: has, t: 0 })
+    scheduleDisplay()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend, tool, settings, scheduleDisplay])
 
-  // Clear the active preview only AFTER the committed image has rendered — the
-  // committed stroke is on screen before the preview vanishes (no 1-frame flash).
-  useEffect(() => { if (committed) active.value = [] }, [committed])
+  const move = useCallback((vx: number, vy: number, pressure: number, has: boolean) => {
+    const e = eng.current
+    if (!e) return
+    const { x, y } = toArtboard(vx, vy)
+    const t = Date.now() - startT.current
+    e.extend({ x, y, pressure, hasPressure: has, t })
+    samples.current.push({ x, y, pressure, hasPressure: has, t })
+    scheduleDisplay()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleDisplay])
 
-  // ── gesture (UI thread worklets; only onEnd hops to JS) ─────────────────────
-  const toPt = (e: { x: number; y: number; stylusData?: { pressure: number } }): ViewPt => {
+  const end = useCallback(() => {
+    const e = eng.current
+    if (!e) return
+    e.end()
+    if (samples.current.length > 0) {
+      strokes.current.push({ toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current, samples: samples.current })
+    }
+    eng.current = null
+    scheduleDisplay()
+  }, [tool, settings, scheduleDisplay])
+
+  // ── gesture (UI-thread worklets; one runOnJS per event) ─────────────────────
+  const press = (e: { stylusData?: { pressure: number } }) => {
     'worklet'
     const p = e.stylusData?.pressure
-    return { x: e.x, y: e.y, pressure: p != null && p > 0 ? p : 1, has: p != null && p > 0 }
+    return { p: p != null && p > 0 ? p : 1, has: p != null && p > 0 }
   }
   const pan = Gesture.Pan()
     .minDistance(0)
-    .onBegin((e) => { active.value = [toPt(e)] })
-    .onUpdate((e) => { active.value = [...active.value, toPt(e)] })
-    .onEnd((e) => { const pts = [...active.value, toPt(e)]; runOnJS(commitStroke)(pts) })
+    .onBegin((e) => { const { p, has } = press(e); runOnJS(begin)(e.x, e.y, p, has) })
+    .onUpdate((e) => { const { p, has } = press(e); runOnJS(move)(e.x, e.y, p, has) })
+    .onFinalize(() => { runOnJS(end)() }) // fires on lift AND cancel
 
   return (
     <View style={styles.fill} onLayout={onLayout}>
       <GestureDetector gesture={pan}>
         <Canvas style={StyleSheet.absoluteFill}>
-          {committed && dims.w > 0 && (
-            <Image image={committed} x={0} y={0} width={dims.w} height={dims.h} fit="contain" />
-          )}
-          {/* Active-stroke preview — redraws on the UI thread via Reanimated. */}
-          <Path
-            path={activePath}
-            style="stroke"
-            color={settings.color === 'transparent' ? '#000000' : settings.color}
-            strokeWidth={previewWidth}
-            strokeCap="round"
-            strokeJoin="round"
-          />
+          {dims.w > 0 && <Image image={image} x={0} y={0} width={dims.w} height={dims.h} fit="contain" />}
         </Canvas>
       </GestureDetector>
     </View>

@@ -116,21 +116,25 @@ export class RNSkiaBackend implements RendererBackend {
     p.setShader(shader)
     this.skc.drawRect(Skia.XYWHRect(box.x, box.y, box.w, box.h), p)
     p.setShader(null)
+    shader.dispose() // free the native shader — created per stamp; leaking these crashes
   }
 
   readPixel(x: number, y: number): RGBA | null {
     // VERIFY: RN-Skia reads back via an image snapshot (no Canvas.readPixels).
     const img = this.surface.makeImageSnapshot(Skia.XYWHRect(x, y, 1, 1))
     const px = img.readPixels(0, 0, this.info(1, 1)) as Uint8Array | null
-    if (!px) return null
-    return { r: px[0], g: px[1], b: px[2], a: px[3] / 255 }
+    // Copy values out BEFORE disposing (readPixels may return a view into the image).
+    const out = px ? { r: px[0], g: px[1], b: px[2], a: px[3] / 255 } : null
+    img.dispose() // per-stamp readback — must free or memory runs away
+    return out
   }
 
   getRegion(x: number, y: number, w: number, h: number): PixelRegion | null {
     const img = this.surface.makeImageSnapshot(Skia.XYWHRect(x, y, w, h))
     const px = img.readPixels(0, 0, this.info(w, h)) as Uint8Array | null
-    if (!px) return null
-    return { data: new Uint8ClampedArray(px), width: w, height: h }
+    const out = px ? { data: new Uint8ClampedArray(px), width: w, height: h } : null
+    img.dispose()
+    return out
   }
 
   putRegion(region: PixelRegion, x: number, y: number) {
@@ -139,16 +143,19 @@ export class RNSkiaBackend implements RendererBackend {
       { width: region.width, height: region.height, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
       data, region.width * 4,
     )
-    if (!img) return
+    if (!img) { data.dispose(); return }
     const p = this.paint
     p.setShader(null)
     p.setBlendMode(BlendMode.Src) // replace dest pixels
     p.setAlphaf(1)
     this.skc.drawImage(img, x, y, p)
+    img.dispose(); data.dispose()
   }
 
   createSurface(w: number, h: number): RendererBackend {
-    const s = Skia.Surface.MakeOffscreen(w, h)!
+    // CPU/raster (Surface.Make) — temp compose surfaces are read back per stamp
+    // (smudge/waterdrop getRegion); CPU keeps that cheap. See DrawCanvas.
+    const s = Skia.Surface.Make(w, h)!
     const child = new RNSkiaBackend(s, true)
     child.clear()
     return child
@@ -162,6 +169,7 @@ export class RNSkiaBackend implements RendererBackend {
     p.setAlphaf(globalAlpha)
     this.skc.drawImage(img, dx, dy, p)
     p.setAlphaf(1)
+    img.dispose()
   }
 
   clear() {
@@ -183,16 +191,18 @@ export class RNSkiaBackend implements RendererBackend {
         mask[mi + 3] = td[(ty * S + tx) * 4 + 3]
       }
     }
+    const data = Skia.Data.fromBytes(new Uint8Array(mask.buffer, mask.byteOffset, mask.byteLength))
     const img = Skia.Image.MakeImage(
       { width: w, height: h, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
-      Skia.Data.fromBytes(new Uint8Array(mask.buffer, mask.byteOffset, mask.byteLength)), w * 4,
+      data, w * 4,
     )
-    if (!img) return
+    if (!img) { data.dispose(); return }
     const p = this.paint
     p.setShader(null)
     p.setBlendMode(BlendMode.DstIn)
     p.setAlphaf(1)
     this.skc.drawImage(img, rectX, rectY, p)
+    img.dispose(); data.dispose()
   }
 
   flush() {
