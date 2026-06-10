@@ -124,10 +124,13 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     const p = s?.pressure
     return { p: p != null && p > 0 ? p : 1, has: p != null && p > 0, tiltX: s?.tiltX ?? 0, tiltY: s?.tiltY ?? 0 }
   }
+  // Palm/finger rejection: only the pen draws. Apple Pencil touches carry `stylusData`;
+  // finger and palm touches don't, so we ignore them. (iOS also suppresses palm touches
+  // while the Pencil is active.) Finger pan/zoom comes with the editor shell — STEP 4.
   const pan = Gesture.Pan()
     .minDistance(0)
-    .onBegin((e) => { const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
-    .onUpdate((e) => { const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
+    .onBegin((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
+    .onUpdate((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
     .onFinalize(() => { runOnJS(end)() }) // fires on lift AND cancel
 
   return (
