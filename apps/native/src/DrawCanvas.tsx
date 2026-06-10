@@ -45,6 +45,8 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
   // Active-stroke state (JS thread).
   const eng = useRef<StrokeEngine | null>(null)
   const samples = useRef<StrokeSample[]>([])
+  const ticks = useRef<number[]>([])
+  const tickRaf = useRef<number | null>(null)
   const startT = useRef(0)
   const seed = useRef(1)
 
@@ -67,6 +69,25 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     })
   }, [backend, image])
 
+  // Watercolor pooling: the engine pools pigment only when the host pumps tick() every
+  // frame while the pointer dwells (mirrors web Canvas.tsx's rAF loop). tick() no-ops for
+  // every other tool, so we only run this loop for watercolor — otherwise we'd snapshot the
+  // unchanged surface every frame while the pen is held still. `now` shares the sample clock
+  // (Date.now()-startT) so the engine's `now - lastMoveAt` dwell gate is correct. Tick times
+  // are recorded into the model so replay reproduces the same pooling.
+  const tickLoop = useCallback(() => {
+    const e = eng.current
+    if (!e) { tickRaf.current = null; return }
+    const now = Date.now() - startT.current
+    e.tick(now)
+    ticks.current.push(now)
+    scheduleDisplay()
+    tickRaf.current = requestAnimationFrame(tickLoop)
+  }, [scheduleDisplay])
+  const stopTick = useCallback(() => {
+    if (tickRaf.current != null) { cancelAnimationFrame(tickRaf.current); tickRaf.current = null }
+  }, [])
+
   const toArtboard = (vx: number, vy: number) => {
     const { w, h } = layout.current
     const s = Math.min(w, h) / ARTBOARD
@@ -83,10 +104,11 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
 
   // Free native resources when this canvas unmounts (e.g. the Clear remount).
   useEffect(() => () => {
+    stopTick()
     image.value?.dispose?.()
     prevDisplay.current?.dispose?.()
     backend.dispose?.()
-  }, [backend, image])
+  }, [backend, image, stopTick])
 
   // ── engine driven incrementally from the gesture (JS thread) ────────────────
   // tiltX/tiltY come from the pen's stylusData and are RETAINED in the model (the engine
@@ -97,10 +119,12 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     seed.current = (Math.random() * 0xffffffff) >>> 0
     eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current)
     samples.current = [{ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 }]
+    ticks.current = []
     eng.current.begin({ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 })
+    if (tool === 'watercolor') { stopTick(); tickRaf.current = requestAnimationFrame(tickLoop) }
     scheduleDisplay()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend, tool, settings, scheduleDisplay])
+  }, [backend, tool, settings, scheduleDisplay, tickLoop, stopTick])
 
   const move = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
     const e = eng.current
@@ -116,13 +140,17 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
   const end = useCallback(() => {
     const e = eng.current
     if (!e) return
+    stopTick()
     e.end()
     if (samples.current.length > 0) {
-      strokes.current.push({ toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current, samples: samples.current })
+      strokes.current.push({
+        toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current,
+        samples: samples.current, ticks: tool === 'watercolor' ? ticks.current : undefined,
+      })
     }
     eng.current = null
     scheduleDisplay()
-  }, [tool, settings, scheduleDisplay])
+  }, [tool, settings, scheduleDisplay, stopTick])
 
   // ── gesture (UI-thread worklets; one runOnJS per event) ─────────────────────
   const press = (e: { stylusData?: { pressure: number; tiltX: number; tiltY: number } }) => {
