@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -34,7 +34,7 @@ const DEFAULT_ASSIST: AssistSettings = {
 }
 
 export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSettings }) {
-  const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!), [])
+  const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true), [])
   const strokes = useRef<ModelStroke[]>([])
   const layout = useRef({ w: 1, h: 1 })
   const [dims, setDims] = useState({ w: 0, h: 0 })
@@ -80,6 +80,13 @@ export function DrawCanvas({ tool, settings }: { tool: ToolId; settings: ToolSet
     layout.current = { w: width, h: height }
     setDims({ w: width, h: height })
   }
+
+  // Free native resources when this canvas unmounts (e.g. the Clear remount).
+  useEffect(() => () => {
+    image.value?.dispose?.()
+    prevDisplay.current?.dispose?.()
+    backend.dispose?.()
+  }, [backend, image])
 
   // ── engine driven incrementally from the gesture (JS thread) ────────────────
   // tiltX/tiltY come from the pen's stylusData and are RETAINED in the model (the engine
