@@ -11,20 +11,15 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@drawie/core": "*",
-    "@drawie/data": "*",
-    "expo": "~53.0.0",
-    "expo-status-bar": "~2.2.0",
-    "react": "19.0.0",
-    "react-native": "0.79.0",
-    "react-native-gesture-handler": "~2.24.0",
-    "@shopify/react-native-skia": "^2.6.4",
-    "@supabase/supabase-js": "^2.107.0",
-    "react-native-url-polyfill": "^2.0.0",
-    "@react-native-async-storage/async-storage": "^2.1.0"
+    "@shopify/react-native-skia": "2.6.2",
+    "expo": "^56.0.0",
+    "expo-status-bar": "~56.0.4",
+    "react-native": "0.85.3",
+    "react-native-gesture-handler": "~2.31.1"
   },
+  "//deps": "@drawie/core + @drawie/data are resolved via tsconfig `paths` + Metro `extraNodeModules` (metro.config.js), NOT npm — they're TS source with no/own deps. Expo-managed native deps (expo-status-bar, react, react-native, react-native-gesture-handler, @shopify/react-native-skia) are added via `npx expo install` so versions match the installed Expo SDK (56 → RN 0.86). @supabase + AsyncStorage + url-polyfill are added in STEP 4/5 when the data layer is wired.",
   "devDependencies": {
-    "@types/react": "~19.0.0",
+    "@types/react": "^19.1.0",
     "typescript": "^5.6.0"
   }
 }

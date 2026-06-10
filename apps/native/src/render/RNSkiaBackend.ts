@@ -3,7 +3,7 @@ import type {
 } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
-  type SkSurface, type SkCanvas, type SkPaint,
+  type SkSurface, type SkCanvas, type SkPaint, type SkColor,
 } from '@shopify/react-native-skia'
 import { getTexturePixels } from './textures'
 
@@ -38,7 +38,7 @@ export class RNSkiaBackend implements RendererBackend {
   get height() { return this.surface.height() }
 
   /** Parse '#rrggbb' | 'rgb()' | 'rgba()' | 'transparent' → SkColor, with an alpha multiplier. */
-  private color(str: string, alphaMul = 1): number {
+  private color(str: string, alphaMul = 1): SkColor {
     if (str === 'transparent') return Skia.Color('rgba(0,0,0,0)')
     if (str[0] === '#' && alphaMul >= 1) return Skia.Color(str)
     let r = 0, g = 0, b = 0, a = 1
@@ -134,7 +134,7 @@ export class RNSkiaBackend implements RendererBackend {
   }
 
   putRegion(region: PixelRegion, x: number, y: number) {
-    const data = Skia.Data.fromBytes(region.data)
+    const data = Skia.Data.fromBytes(new Uint8Array(region.data.buffer, region.data.byteOffset, region.data.byteLength))
     const img = Skia.Image.MakeImage(
       { width: region.width, height: region.height, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
       data, region.width * 4,
@@ -185,7 +185,7 @@ export class RNSkiaBackend implements RendererBackend {
     }
     const img = Skia.Image.MakeImage(
       { width: w, height: h, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
-      Skia.Data.fromBytes(mask), w * 4,
+      Skia.Data.fromBytes(new Uint8Array(mask.buffer, mask.byteOffset, mask.byteLength)), w * 4,
     )
     if (!img) return
     const p = this.paint
