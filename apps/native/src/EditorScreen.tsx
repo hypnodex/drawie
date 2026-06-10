@@ -5,6 +5,7 @@ import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
 import { ColorPalette } from './ui/ColorPalette'
+import { TexturePicker } from './ui/TexturePicker'
 
 /**
  * Editor shell (STEP 4, increment 1) — wraps the working DrawCanvas with real, editable
@@ -31,11 +32,20 @@ export function EditorScreen() {
       <View style={styles.panel}>
         <ColorPalette color={active.color} onChange={(c) => patch({ color: c })} />
 
-        <Slider label="Size" value={active.size} min={1} max={100} onChange={(v) => patch({ size: v })} />
+        <Slider label="Size" value={active.size} min={1} max={120} onChange={(v) => patch({ size: v })} />
         <Slider
-          label="Opacity" value={active.opacity} min={0.05} max={1} step={0.05}
+          label="Opacity" value={active.opacity} min={0.05} max={1} step={0.01}
           onChange={(v) => patch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`}
         />
+        <Slider
+          label="Hardness" value={active.hardness} min={0} max={1} step={0.01}
+          onChange={(v) => patch({ hardness: v })} format={(v) => `${Math.round(v * 100)}%`}
+        />
+        <Slider
+          label="Softness" value={active.softness} min={0} max={1} step={0.01}
+          onChange={(v) => patch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`}
+        />
+        <TexturePicker value={active.texture} onChange={(t) => patch({ texture: t })} />
 
         <View style={styles.toolRow}>
           <Pressable onPress={() => canvas.current?.undo()} disabled={!hist.canUndo} style={[styles.action, !hist.canUndo && styles.actionOff]}>
