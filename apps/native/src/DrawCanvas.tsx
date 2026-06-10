@@ -6,8 +6,7 @@ import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useSharedValue, runOnJS } from 'react-native-reanimated'
 import {
-  StrokeEngine, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings,
-  type AssistSettings,
+  StrokeEngine, DEFAULT_ASSIST, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings,
 } from '@drawie/core'
 import { RNSkiaBackend } from './render/RNSkiaBackend'
 
@@ -30,11 +29,6 @@ import { RNSkiaBackend } from './render/RNSkiaBackend'
 
 const ARTBOARD = 2000
 const MAX_UNDO = 10 // pixel-checkpoint undo depth (≈16MB each at 2000²)
-
-const DEFAULT_ASSIST: AssistSettings = {
-  stabilize: false, stabilizeStrength: 0.5, shapeAssist: false, shapeStrength: 0.6,
-  perfectShape: true, holdToSnap: false, holdDelay: 500,
-}
 
 export type DrawCanvasHandle = { undo: () => void; redo: () => void; clear: () => void }
 

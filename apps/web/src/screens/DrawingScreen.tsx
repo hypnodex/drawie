@@ -6,7 +6,7 @@ import { ToolSettingsPanel } from '../components/editor/ToolSettings'
 import { LayersPanel } from '../components/editor/Layers'
 import { MosaicReveal } from '../components/editor/MosaicReveal'
 import { SaveIcon, SendIcon, CheckCircleIcon } from '../components/icons'
-import { AssistSettings, Layer, ToolId, ToolSettingsMap } from '@drawie/core'
+import { DEFAULT_ASSIST, DEFAULT_SETTINGS, Layer, ToolId, ToolSettingsMap } from '@drawie/core'
 import type { Canvas as CanvasDomain, Tile } from '@drawie/data'
 import {
   clearSession, loadSession, saveSession,
@@ -39,26 +39,7 @@ function computeCanvasCoverage(src: HTMLCanvasElement): number {
   return (drawn / (SAMPLER_SIZE * SAMPLER_SIZE)) * 100
 }
 
-const COMMON = { hardness: 0.6, shape: 'circle' as const, texture: 'none' as const, blending: 0, dilution: 0, persistence: 0.7, buildUp: false }
-const DEFAULT_SETTINGS: ToolSettingsMap = {
-  brush:      { color: '#7c8cff', size: 28, opacity: 0.85, softness: 0.5, strength: 0.6, pressureSim: true,  wetPaint: false, ...COMMON, buildUp: true },
-  drybrush:   { color: '#111318', size: 46, opacity: 0.95, softness: 0.5, strength: 0.65,pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
-  inkbrush:   { color: '#0a0b0e', size: 64, opacity: 1.0,  softness: 0.5, strength: 0.5, pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
-  pencil:     { color: '#0a0b0e', size: 6,  opacity: 0.85, softness: 0.5, strength: 0.6, pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
-  pen:        { color: '#111318', size: 4,  opacity: 1.0,  softness: 0.5, strength: 0.6, pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
-  marker:     { color: '#ffd166', size: 36, opacity: 0.6,  softness: 0.5, strength: 0.6, pressureSim: false, wetPaint: false, ...COMMON, hardness: 0.75, buildUp: true },
-  watercolor: { color: '#118ab2', size: 40, opacity: 0.85, softness: 0.5, strength: 0.6, pressureSim: true,  wetPaint: true,  ...COMMON, hardness: 0.25, blending: 0.4, dilution: 0.3, buildUp: true },
-  spray:      { color: '#ef476f', size: 60, opacity: 0.7,  softness: 0.5, strength: 0.6, pressureSim: true,  wetPaint: false, ...COMMON },
-  eraser:     { color: '#000000', size: 30, opacity: 1.0,  softness: 0.4, strength: 0.6, pressureSim: false, wetPaint: false, ...COMMON },
-  smudge:     { color: '#000000', size: 36, opacity: 1.0,  softness: 0.5, strength: 0.55,pressureSim: false, wetPaint: false, ...COMMON },
-  waterdrop:  { color: 'transparent', size: 80, opacity: 0.7, softness: 0.5, strength: 0.6, pressureSim: false, wetPaint: false, ...COMMON },
-}
-
-const DEFAULT_ASSIST: AssistSettings = {
-  stabilize: false, stabilizeStrength: 0.5,
-  shapeAssist: false, shapeStrength: 0.6,
-  perfectShape: true, holdToSnap: false, holdDelay: 500,
-}
+// DEFAULT_SETTINGS + DEFAULT_ASSIST now live in @drawie/core (shared with native) — imported above.
 
 const INITIAL_LAYERS: Layer[] = [{ id: 'l1', name: 'Layer 1', visible: true }]
 const RECENT_MAX = 8
