@@ -2,30 +2,32 @@ import { useState } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
 import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native'
-import type { ToolId } from '@drawie/core'
 import { DrawCanvas } from './src/DrawCanvas'
-import { DEFAULT_SETTINGS, TOOL_IDS } from './src/tools'
+import { PRESETS } from './src/tools'
 
 /**
  * Phase 5 native entry — the shared drawing core on a Skia surface, with a minimal
- * tool selector for walking all 11 tools on device against the web /draw?skia=1
- * reference (STEP 3.3). The full product shell is rebuilt in RN later (STEP 4).
+ * tool selector for walking all 11 tools (+ textured-stamp presets) on device against
+ * the web /draw?skia=1 reference (STEP 3.3). The full product shell is rebuilt in RN
+ * later (STEP 4). Switching presets keeps the canvas pixels, so readback tools
+ * (eraser/smudge/waterdrop) act on whatever was drawn before. Clear remounts the canvas.
  */
 export default function App() {
-  const [tool, setTool] = useState<ToolId>('brush')
+  const [presetKey, setPresetKey] = useState(PRESETS[0].key)
   const [clearKey, setClearKey] = useState(0) // bump to remount DrawCanvas → fresh surface
+  const preset = PRESETS.find((p) => p.key === presetKey) ?? PRESETS[0]
 
   return (
     <GestureHandlerRootView style={styles.fill}>
       <StatusBar style="auto" />
       <View style={styles.fill}>
-        <DrawCanvas key={clearKey} tool={tool} settings={DEFAULT_SETTINGS[tool]} />
+        <DrawCanvas key={clearKey} tool={preset.tool} settings={preset.settings} />
       </View>
       <View style={styles.bar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.barRow}>
-          {TOOL_IDS.map((id) => (
-            <Pressable key={id} onPress={() => setTool(id)} style={[styles.tool, tool === id && styles.toolActive]}>
-              <Text style={[styles.toolText, tool === id && styles.toolTextActive]}>{id}</Text>
+          {PRESETS.map((p) => (
+            <Pressable key={p.key} onPress={() => setPresetKey(p.key)} style={[styles.tool, presetKey === p.key && styles.toolActive]}>
+              <Text style={[styles.toolText, presetKey === p.key && styles.toolTextActive]}>{p.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
