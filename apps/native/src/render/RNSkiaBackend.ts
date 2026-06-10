@@ -120,21 +120,16 @@ export class RNSkiaBackend implements RendererBackend {
   }
 
   readPixel(x: number, y: number): RGBA | null {
-    // VERIFY: RN-Skia reads back via an image snapshot (no Canvas.readPixels).
-    const img = this.surface.makeImageSnapshot(Skia.XYWHRect(x, y, 1, 1))
-    const px = img.readPixels(0, 0, this.info(1, 1)) as Uint8Array | null
-    // Copy values out BEFORE disposing (readPixels may return a view into the image).
-    const out = px ? { r: px[0], g: px[1], b: px[2], a: px[3] / 255 } : null
-    img.dispose() // per-stamp readback — must free or memory runs away
-    return out
+    // BOUNDED read: SkCanvas.readPixels copies just the requested patch — NOT a full-surface
+    // makeImageSnapshot per stamp (which made the readback tools degrade on a filled canvas).
+    const px = this.skc.readPixels(x, y, this.info(1, 1)) as Uint8Array | null
+    return px ? { r: px[0], g: px[1], b: px[2], a: px[3] / 255 } : null
   }
 
   getRegion(x: number, y: number, w: number, h: number): PixelRegion | null {
-    const img = this.surface.makeImageSnapshot(Skia.XYWHRect(x, y, w, h))
-    const px = img.readPixels(0, 0, this.info(w, h)) as Uint8Array | null
-    const out = px ? { data: new Uint8ClampedArray(px), width: w, height: h } : null
-    img.dispose()
-    return out
+    // BOUNDED read (see readPixel) — smudge/waterdrop sample only their brush-sized patch.
+    const px = this.skc.readPixels(x, y, this.info(w, h)) as Uint8Array | null
+    return px ? { data: new Uint8ClampedArray(px), width: w, height: h } : null
   }
 
   putRegion(region: PixelRegion, x: number, y: number) {
