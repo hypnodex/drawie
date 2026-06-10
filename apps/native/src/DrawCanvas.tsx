@@ -38,10 +38,13 @@ type DrawCanvasProps = {
   /** Fired after every history change (stroke end / undo / redo / clear) so the host can
    *  enable or disable its undo/redo buttons. */
   onHistory?: (h: { canUndo: boolean; canRedo: boolean }) => void
+  /** When false the pen gesture is disabled — used for stacked layers so only the active
+   *  layer receives input (others are display-only). Defaults to true. */
+  active?: boolean
 }
 
 export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function DrawCanvas(
-  { tool, settings, onHistory }, ref,
+  { tool, settings, onHistory, active = true }, ref,
 ) {
   const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true), [])
   const strokes = useRef<ModelStroke[]>([])
@@ -239,6 +242,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // finger and palm touches don't, so we ignore them. (iOS also suppresses palm touches
   // while the Pencil is active.) Finger pan/zoom comes with the editor shell — STEP 4.
   const pan = Gesture.Pan()
+    .enabled(active)
     .minDistance(0)
     .onBegin((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
     .onUpdate((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
@@ -255,4 +259,6 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   )
 })
 
-const styles = StyleSheet.create({ fill: { flex: 1, backgroundColor: '#fff' } })
+// Transparent: the white canvas background is provided once by the host, so stacked layers
+// composite correctly (lower layers show through where an upper layer has no pixels).
+const styles = StyleSheet.create({ fill: { flex: 1, backgroundColor: 'transparent' } })
