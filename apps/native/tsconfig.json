@@ -3,7 +3,10 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ESNext", "DOM"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "jsx": "react-jsx",
     "types": [],
     "skipLibCheck": true,
@@ -14,9 +17,18 @@
     "strict": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@drawie/core": ["../../packages/core/src/index.ts"],
-      "@drawie/data": ["../../packages/data/src/index.ts"]
+      "@drawie/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@drawie/data": [
+        "../../packages/data/src/index.ts"
+      ]
     }
   },
-  "include": ["src", "index.ts", "app.config.ts"]
+  "include": [
+    "src",
+    "index.ts",
+    "app.config.ts"
+  ],
+  "extends": "expo/tsconfig.base"
 }

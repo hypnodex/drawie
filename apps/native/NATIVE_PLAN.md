@@ -5,6 +5,41 @@ the same `@drawie/core` `StrokeEngine` + retained vector model that power web re
 through `RNSkiaBackend` (a `RendererBackend` against `@shopify/react-native-skia`). This
 folder lays the rendering foundation and documents the device-dependent remainder.
 
+## ✅ Device bring-up — what actually runs (2026-06-10, iPad Pro 11″, iOS 26.5, Xcode 26.5)
+
+The app builds, installs, and **draws on a real iPad** with the shared `@drawie/core` engine.
+
+**Versions (Expo SDK 56):** react-native 0.85.3 · @shopify/react-native-skia 2.6.2 ·
+react-native-reanimated 4.3.1 + react-native-worklets 0.8.3 (babel `react-native-worklets/plugin`,
+last) · react-native-gesture-handler 2.31.1 · react 19.2.7. TypeScript 6 in apps/native.
+
+**Build/sign (free Apple ID):** set `DEVELOPMENT_TEAM` + `CODE_SIGN_STYLE = Automatic` in
+`ios/Drawie.xcodeproj` (personal team). `expo run:ios` does NOT pass `-allowProvisioningUpdates`,
+so the **first** build must be `xcodebuild … -allowProvisioningUpdates` to generate the free-team
+profile (it's then cached and `expo run:ios` works). Device needs **Developer Mode** on
+(Settings → Privacy & Security) and the dev cert **trusted** (Settings → General → VPN & Device
+Management). `ios/` is git-ignored (CNG) — `expo prebuild` regenerates it; re-apply the two signing
+keys after a clean prebuild.
+
+**Low-latency input/render binding (DrawCanvas):**
+- Input: gesture-handler `Pan` with **worklet** callbacks (UI thread). Pen **pressure + tilt** read
+  from `event.stylusData` (`{pressure, tiltX, tiltY, azimuthAngle, altitudeAngle}`). Confirmed:
+  pressure ranges ~0.04 (light) … ~0.80 (firm) on Apple Pencil.
+- Active stroke: a reactive Skia `<Path>` from a Reanimated `useDerivedValue` — redraws on the UI
+  thread per frame, **no React state / re-render on the hot path**. Width tracks live pressure.
+- Committed strokes: on lift only (one `runOnJS`), the `@drawie/core` engine renders into an
+  offscreen surface; cached as an `<Image>` (scene not replayed per move). Preview cleared after the
+  committed image renders (avoids a 1-frame flash).
+- **Two gotchas solved:** (1) an offscreen surface snapshot is a GPU-texture image the on-screen
+  `<Canvas>` can't draw — convert via `makeImageSnapshot().makeNonTextureImage()`. (2) Keep the
+  drawing surface **transparent** (white paper = the View bg); filling it white makes the brush's
+  build-up read opaque-white → near-white (invisible) strokes.
+
+**Confirmed:** dev-client on device, shared engine renders, low-latency pen tracking, real pressure,
+no crashes. **Remaining (STEP 3+):** pressure feel/curve tuning, use tilt, palm rejection
+(finger-vs-pen filtering), Apple predicted/coalesced touches (RNGH doesn't expose these — native
+follow-up), all 11 tools on device, perf at scale, then the editor UI + auth (STEP 4–5).
+
 ## ⚠️ Status — what's real vs. what's unverified
 
 | Piece | State |
