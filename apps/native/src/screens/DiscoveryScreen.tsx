@@ -7,7 +7,7 @@ import { listCanvases, supabase, type Canvas } from '@drawie/data'
  * Tapping a canvas opens its tile grid. Minimal cards for now (title + progress); the
  * gradient/mosaic thumbnails come later.
  */
-export function DiscoveryScreen({ onOpen }: { onOpen: (canvasId: string) => void }) {
+export function DiscoveryScreen({ onOpen, onCreate }: { onOpen: (canvasId: string) => void; onCreate: () => void }) {
   const [canvases, setCanvases] = useState<Canvas[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -28,7 +28,10 @@ export function DiscoveryScreen({ onOpen }: { onOpen: (canvasId: string) => void
     <View style={styles.fill}>
       <View style={styles.header}>
         <Text style={styles.title}>Canvases</Text>
-        <Pressable onPress={() => supabase.auth.signOut()} hitSlop={8}><Text style={styles.signOut}>Sign out</Text></Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={onCreate} hitSlop={8} style={styles.newBtn}><Text style={styles.newBtnText}>+ New</Text></Pressable>
+          <Pressable onPress={() => supabase.auth.signOut()} hitSlop={8}><Text style={styles.signOut}>Sign out</Text></Pressable>
+        </View>
       </View>
 
       {canvases === null && !error ? (
@@ -74,6 +77,9 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 28, fontWeight: '800', color: '#1a1a2e' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  newBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: '#7c8cff' },
+  newBtnText: { fontSize: 13, color: '#fff', fontWeight: '700' },
   signOut: { fontSize: 13, color: '#888', fontWeight: '600' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   error: { color: '#ef476f', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },

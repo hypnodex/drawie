@@ -9,6 +9,7 @@ import { EditorScreen } from './src/EditorScreen'
 import { LoginScreen } from './src/auth/LoginScreen'
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen'
 import { CanvasScreen } from './src/screens/CanvasScreen'
+import { CreateCanvasScreen } from './src/screens/CreateCanvasScreen'
 
 /**
  * Phase 5 native entry. Auth-gates the product, then a minimal state-based router for the
@@ -17,6 +18,7 @@ import { CanvasScreen } from './src/screens/CanvasScreen'
  */
 type Route =
   | { name: 'discovery' }
+  | { name: 'create' }
   | { name: 'canvas'; canvasId: string }
   | { name: 'editor'; canvasId: string; tile: Tile }
 
@@ -39,7 +41,19 @@ export default function App() {
   } else if (!session) {
     content = <LoginScreen />
   } else if (route.name === 'discovery') {
-    content = <DiscoveryScreen onOpen={(canvasId) => setRoute({ name: 'canvas', canvasId })} />
+    content = (
+      <DiscoveryScreen
+        onOpen={(canvasId) => setRoute({ name: 'canvas', canvasId })}
+        onCreate={() => setRoute({ name: 'create' })}
+      />
+    )
+  } else if (route.name === 'create') {
+    content = (
+      <CreateCanvasScreen
+        onBack={() => setRoute({ name: 'discovery' })}
+        onCreated={(canvasId) => setRoute({ name: 'canvas', canvasId })}
+      />
+    )
   } else if (route.name === 'canvas') {
     content = (
       <CanvasScreen
