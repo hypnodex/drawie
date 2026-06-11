@@ -25,10 +25,11 @@ const STATUSES: { k: StatusKey; label: string }[] = [
 ]
 
 export function DiscoveryScreen({
-  onOpen, onCreate, onProfile, onDevTools,
+  onOpen, onCreate, onJoin, onProfile, onDevTools,
 }: {
   onOpen: (canvasId: string) => void
   onCreate: () => void
+  onJoin: () => void
   onProfile: () => void
   onDevTools?: () => void
 }) {
@@ -58,6 +59,7 @@ export function DiscoveryScreen({
         <Pressable onLongPress={onDevTools} delayLongPress={600}><Text style={styles.title}>Canvases</Text></Pressable>
         <View style={styles.headerActions}>
           <Pressable onPress={onCreate} hitSlop={8} style={styles.newBtn}><Text style={styles.newBtnText}>+ New</Text></Pressable>
+          <Pressable onPress={onJoin} hitSlop={8}><Text style={styles.me}>Join</Text></Pressable>
           <Pressable onPress={onProfile} hitSlop={8}><Text style={styles.me}>Me</Text></Pressable>
         </View>
       </View>

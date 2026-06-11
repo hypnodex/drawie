@@ -4,7 +4,7 @@ import {
 } from 'react-native'
 import {
   createCanvas, getProfile, computeEntitlement, moderateContent, GUIDELINES_MESSAGE,
-  supabase, type Entitlement,
+  supabase, type Entitlement, type Canvas,
 } from '@drawie/data'
 import type { ToolId } from '@drawie/core'
 import { PALETTE } from '../ui/ColorPalette'
@@ -37,7 +37,7 @@ export function CreateCanvasScreen({
   onBack, onCreated,
 }: {
   onBack: () => void
-  onCreated: (canvasId: string) => void
+  onCreated: (canvas: Canvas) => void
 }) {
   const [entitlement, setEntitlement] = useState<Entitlement | null | undefined>(undefined)
   const [title, setTitle] = useState('')
@@ -47,6 +47,7 @@ export function CreateCanvasScreen({
   const [style, setStyle] = useState('Painterly')
   const [styleGuidance, setStyleGuidance] = useState('')
   const [grid, setGrid] = useState(GRID_PRESETS[1]) // 5×5 default
+  const [visibility, setVisibility] = useState<'public' | 'private-link'>('public')
   const [paletteColors, setPaletteColors] = useState<string[]>([]) // empty = any colour
   const [toolSel, setToolSel] = useState<ToolId[]>([]) // empty = all tools
   const [creating, setCreating] = useState(false)
@@ -84,6 +85,8 @@ export function CreateCanvasScreen({
         setCreating(false)
         return
       }
+      // Private is premium-only — defend the payload even though the UI gates it.
+      const isPrivate = visibility === 'private-link' && !!entitlement?.isPremium
       const canvas = await createCanvas({
         title: title.trim(),
         description: description.trim() || topic.trim(),
@@ -97,10 +100,11 @@ export function CreateCanvasScreen({
         background: '#ffffff',
         styleGuidance: styleGuidance.trim(),
         participationMode: 'free-pick',
-        visibility: 'public',
+        visibility: isPrivate ? 'private-link' : 'public',
+        participantCount: isPrivate ? grid.rows * grid.cols : undefined,
         neighborPreviewSize: 'small',
       })
-      onCreated(canvas.id)
+      onCreated(canvas)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(
@@ -162,6 +166,23 @@ export function CreateCanvasScreen({
                   <Text style={[styles.chipText, grid.label === g.label && styles.chipTextOn]}>{g.label}</Text>
                 </Pressable>
               ))}
+            </View>
+          </Field>
+
+          <Field label="Visibility" hint={visibility === 'private-link' ? 'Invite-only — share a link' : 'Public — anyone can join'}>
+            <View style={styles.row}>
+              <Pressable onPress={() => setVisibility('public')} style={[styles.chip, visibility === 'public' && styles.chipOn]}>
+                <Text style={[styles.chipText, visibility === 'public' && styles.chipTextOn]}>Public</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => entitlement?.isPremium && setVisibility('private-link')}
+                disabled={!entitlement?.isPremium}
+                style={[styles.chip, visibility === 'private-link' && styles.chipOn, !entitlement?.isPremium && styles.chipDisabled]}
+              >
+                <Text style={[styles.chipText, visibility === 'private-link' && styles.chipTextOn]}>
+                  {entitlement?.isPremium ? 'Private' : 'Private · Premium'}
+                </Text>
+              </Pressable>
             </View>
           </Field>
 
@@ -251,6 +272,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#ececf2' },
   chipOn: { backgroundColor: '#7c8cff' },
+  chipDisabled: { opacity: 0.5 },
   chipText: { fontSize: 13, color: '#444', fontWeight: '600' },
   chipTextOn: { color: '#fff' },
   gridMeta: { fontSize: 13, color: '#999', marginLeft: 4 },

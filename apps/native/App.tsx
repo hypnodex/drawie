@@ -4,13 +4,15 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
 import { StyleSheet, View, ActivityIndicator, Linking } from 'react-native'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, type Tile, type Canvas } from '@drawie/data'
+import { supabase, joinPrivateCanvas, type Tile, type Canvas } from '@drawie/data'
 import { EditorScreen } from './src/EditorScreen'
 import { LoginScreen } from './src/auth/LoginScreen'
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen'
 import { CanvasScreen } from './src/screens/CanvasScreen'
 import { CreateCanvasScreen } from './src/screens/CreateCanvasScreen'
 import { ProfileScreen } from './src/screens/ProfileScreen'
+import { ShareScreen } from './src/screens/ShareScreen'
+import { JoinScreen } from './src/screens/JoinScreen'
 import { GoldenScreen } from './src/golden/GoldenScreen'
 
 /**
@@ -22,13 +24,16 @@ type Route =
   | { name: 'discovery' }
   | { name: 'create' }
   | { name: 'profile' }
+  | { name: 'share'; canvas: Canvas }
+  | { name: 'join' }
   | { name: 'golden' }
   | { name: 'canvas'; canvasId: string }
   | { name: 'editor'; canvasId: string; tile: Tile; canvas: Canvas }
 
-// OAuth codes already exchanged this session — guards against the redirect being delivered twice
-// (getInitialURL + the 'url' event). Module-level so it survives effect re-runs.
+// Deep-link single-use guards — the redirect can arrive via BOTH getInitialURL (cold) and the 'url'
+// event. Module-level so they survive effect re-runs.
 const handledOAuthCodes = new Set<string>()
+const handledJoinTokens = new Set<string>()
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -52,6 +57,18 @@ export default function App() {
       if (!url) return
       const err = url.match(/[?&]error[^=]*=([^&]+)/)?.[1]
       if (err) { console.warn('[auth] OAuth redirect error:', decodeURIComponent(err)); return }
+      // Private-canvas invite: drawie://join?token=… or …/join/<token> → join + drop into the editor.
+      if (/[?&]token=|\/join\//.test(url)) {
+        const token = url.match(/[?&]token=([^&#]+)/)?.[1] ?? url.match(/\/join\/([^?#/]+)/)?.[1]
+        if (token && !handledJoinTokens.has(token)) {
+          handledJoinTokens.add(token)
+          try {
+            const { canvas, tile } = await joinPrivateCanvas(decodeURIComponent(token))
+            setRoute({ name: 'editor', canvasId: canvas.id, tile, canvas })
+          } catch (e) { console.warn('[join] failed:', e instanceof Error ? e.message : String(e)) }
+        }
+        return
+      }
       const code = url.match(/[?&]code=([^&]+)/)?.[1]
       // Dedupe: the redirect can arrive via BOTH getInitialURL (cold) and the 'url' event, but the
       // PKCE code is single-use — exchanging twice yields a benign "invalid flow state". Skip repeats.
@@ -75,6 +92,7 @@ export default function App() {
       <DiscoveryScreen
         onOpen={(canvasId) => setRoute({ name: 'canvas', canvasId })}
         onCreate={() => setRoute({ name: 'create' })}
+        onJoin={() => setRoute({ name: 'join' })}
         onProfile={() => setRoute({ name: 'profile' })}
         onDevTools={() => setRoute({ name: 'golden' })}
       />
@@ -83,7 +101,23 @@ export default function App() {
     content = (
       <CreateCanvasScreen
         onBack={() => setRoute({ name: 'discovery' })}
-        onCreated={(canvasId) => setRoute({ name: 'canvas', canvasId })}
+        onCreated={(canvas) =>
+          setRoute(canvas.visibility === 'private-link' ? { name: 'share', canvas } : { name: 'canvas', canvasId: canvas.id })}
+      />
+    )
+  } else if (route.name === 'share') {
+    content = (
+      <ShareScreen
+        canvas={route.canvas}
+        onOpen={(id) => setRoute({ name: 'canvas', canvasId: id })}
+        onBack={() => setRoute({ name: 'discovery' })}
+      />
+    )
+  } else if (route.name === 'join') {
+    content = (
+      <JoinScreen
+        onBack={() => setRoute({ name: 'discovery' })}
+        onJoined={(canvas, tile) => setRoute({ name: 'editor', canvasId: canvas.id, tile, canvas })}
       />
     )
   } else if (route.name === 'profile') {
