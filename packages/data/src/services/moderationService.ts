@@ -48,8 +48,13 @@ export interface ModerationResult {
 export interface ModerationInput {
   /** Free-text fields to scan (title, description, on-canvas text, …). */
   texts?: Array<string | null | undefined>
-  /** Rendered artboard to scan visually. */
+  /** Rendered artboard to scan visually (web — encoded to a data URL here). */
   image?: HTMLCanvasElement | null
+  /** Pre-encoded image data URL to scan visually (native — no DOM canvas; the
+   *  caller composites + downscales + encodes JPEG itself). Takes precedence over
+   *  `image`. There's no on-device fallback for this path, so it fail-opens if the
+   *  edge function is unavailable. */
+  imageDataUrl?: string
 }
 
 /** The single canonical message shown whenever content is blocked. */
@@ -358,7 +363,8 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, max = 1024): string {
  */
 async function moderateWithEdge(input: ModerationInput): Promise<ModerationFinding[]> {
   const texts = (input.texts ?? []).filter((t): t is string => !!t && !!t.trim())
-  const imageDataUrl = input.image ? canvasToDataUrl(input.image) : undefined
+  // Native passes a pre-encoded data URL (no DOM canvas); web encodes its HTMLCanvasElement here.
+  const imageDataUrl = input.imageDataUrl ?? (input.image ? canvasToDataUrl(input.image) : undefined)
   if (texts.length === 0 && !imageDataUrl) return []
 
   const { data, error } = await supabase.functions.invoke('moderate', {
@@ -371,7 +377,7 @@ async function moderateWithEdge(input: ModerationInput): Promise<ModerationFindi
   if (dataDebug) console.debug('[moderation] edge verdict:', verdict)
   if (!verdict.flagged) return []
 
-  const source: ModerationSource = input.image ? 'image' : 'text'
+  const source: ModerationSource = input.image || input.imageDataUrl ? 'image' : 'text'
   const cats = verdict.categories?.length ? verdict.categories : ['harassment']
   return cats.map((c) => ({
     category: mapOpenAICategory(c),
@@ -425,14 +431,15 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
 
   const tasks: Promise<ModerationFinding[]>[] = []
 
-  if (input.image) {
+  if (input.image || input.imageDataUrl) {
     // Single multimodal Edge call: reads drawn words + judges imagery + screens
-    // the text fields. Falls back to the on-device pipeline on any failure or
-    // when the server has no OpenAI key configured.
+    // the text fields. On any failure (or no server key) web falls back to the
+    // on-device OCR + nsfwjs pipeline; native (imageDataUrl, no DOM canvas) has no
+    // such fallback, so it fail-opens — the hosted project has the OpenAI key set.
     tasks.push(
       moderateWithEdge(input).catch((err) => {
         console.warn('[moderation] edge moderation unavailable — using on-device fallback.', err)
-        return localImageScreen(input.image!)
+        return input.image ? localImageScreen(input.image) : []
       }),
     )
   } else if ((input.texts ?? []).some((t) => t && t.trim())) {

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
-import { Skia, type SkImage } from '@shopify/react-native-skia'
+import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import { uploadTileArtwork, completeTileAndMaybeReveal, type Tile } from '@drawie/data'
+import { uploadTileArtwork, completeTileAndMaybeReveal, moderateContent, GUIDELINES_MESSAGE, type Tile } from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
@@ -11,6 +11,24 @@ import { TexturePicker } from './ui/TexturePicker'
 import { LayersPanel, type LayerMeta } from './ui/LayersPanel'
 
 const ARTBOARD = 2000 // must match DrawCanvas — the per-layer surface size we composite
+
+// Build the moderation image: composite onto white, downscale to ≤1024, encode JPEG as a base64
+// data URL — the same payload web's canvasToDataUrl produces for the `moderate` edge function.
+// Allocates + disposes its own Skia scratch surface; throws if it can't be allocated.
+function toModerationDataUrl(composite: SkImage): string {
+  const w = Math.max(1, Math.round(ARTBOARD * Math.min(1, 1024 / ARTBOARD)))
+  const surf = Skia.Surface.Make(w, w)
+  if (!surf) throw new Error('Could not allocate the moderation surface.')
+  const c = surf.getCanvas()
+  c.clear(Skia.Color('#ffffff')) // white bg, matching web canvasToDataUrl
+  c.drawImageRect(composite, Skia.XYWHRect(0, 0, ARTBOARD, ARTBOARD), Skia.XYWHRect(0, 0, w, w), Skia.Paint())
+  surf.flush?.()
+  const img = surf.makeImageSnapshot()
+  const b64 = img.encodeToBase64(ImageFormat.JPEG, 92)
+  img.dispose()
+  surf.dispose?.()
+  return `data:image/jpeg;base64,${b64}`
+}
 
 /**
  * Editor shell (STEP 4) — wraps DrawCanvas with editable per-tool settings (colour/size/
@@ -60,14 +78,14 @@ export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; ti
   // at their per-layer opacity into one transparent PNG — WYSIWYG with what's on screen, and
   // transparent-where-unpainted like the web composite (getCompositeCanvas) — then upload it to
   // the `tiles` bucket and complete_tile (which fires the mosaic reveal on the final tile).
-  // Mirrors web CanvasDrawScreen.onSubmit. On success we exit back to the tile grid.
-  // FOLLOW-UP: web runs client-side moderation before submit; native moderation (the server-side
-  // `moderate` edge function) is a separate increment.
+  // Mirrors web CanvasDrawScreen.onSubmit + DrawingScreen's moderation gate: the artwork is screened
+  // server-side (the `moderate` edge function) BEFORE publishing; a block aborts and keeps the work.
   const submit = async () => {
     if (!canvasId || !tile || submitting) return
     setSubmitError(null)
     setSubmitting(true)
     const snaps: SkImage[] = []
+    let composite: SkImage | null = null
     try {
       const surface = Skia.Surface.Make(ARTBOARD, ARTBOARD)
       if (!surface) throw new Error('Could not allocate a canvas surface.')
@@ -83,13 +101,22 @@ export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; ti
         sc.drawImage(img, 0, 0, paint)
       }
       surface.flush?.()
-      const composite = surface.makeImageSnapshot()
-      const bytes = composite.encodeToBytes() // PNG
-      composite.dispose()
+      composite = surface.makeImageSnapshot()
       surface.dispose?.()
+
+      // Moderation gate — screen the artwork before it's published. A block leaves the canvas
+      // untouched so the user can edit and resubmit (mirrors web passesModeration()).
+      const verdict = await moderateContent({ imageDataUrl: toModerationDataUrl(composite) })
+      if (!verdict.allowed) {
+        setSubmitError(verdict.message || GUIDELINES_MESSAGE)
+        setSubmitting(false)
+        return
+      }
+
       // RN supabase-storage uploads an ArrayBuffer reliably (Blob/FormData are flaky on RN).
       // encodeToBytes returns a plain ArrayBuffer-backed array; the cast just drops the
       // SharedArrayBuffer arm of ArrayBufferLike that .slice() widens to.
+      const bytes = composite.encodeToBytes() // PNG
       const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
       const path = await uploadTileArtwork(canvasId, tile.id, body)
       await completeTileAndMaybeReveal(canvasId, tile.id, path)
@@ -99,6 +126,7 @@ export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; ti
       setSubmitting(false)
     } finally {
       snaps.forEach((sn) => sn.dispose())
+      composite?.dispose()
     }
   }
   const canSubmit = !!canvasId && !!tile
