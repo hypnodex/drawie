@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import { supabase } from '@drawie/data'
+import type { Tile } from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
@@ -19,7 +19,7 @@ import { LayersPanel, type LayerMeta } from './ui/LayersPanel'
  * non-active wrappers are pointerEvents="none", so touches fall through to the active one).
  * Undo/redo/clear route to the active layer's ref; history is tracked per layer.
  */
-export function EditorScreen() {
+export function EditorScreen({ tile, onExit }: { canvasId?: string; tile?: Tile; onExit?: () => void }) {
   const [tool, setTool] = useState<ToolId>('brush')
   const [settingsMap, setSettingsMap] = useState<ToolSettingsMap>(DEFAULT_SETTINGS)
   const [layers, setLayers] = useState<LayerMeta[]>([{ id: 1, visible: true, opacity: 1 }])
@@ -53,9 +53,11 @@ export function EditorScreen() {
 
   return (
     <View style={styles.fill}>
-      <Pressable style={styles.signOut} onPress={() => supabase.auth.signOut()}>
-        <Text style={styles.signOutText}>Sign out</Text>
-      </Pressable>
+      <View style={styles.topBar}>
+        <Pressable onPress={() => onExit?.()} hitSlop={8}><Text style={styles.topBack}>‹ Tiles</Text></Pressable>
+        <Text style={styles.topTitle}>{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
+        <View style={{ width: 60 }} />
+      </View>
       <View style={styles.canvasWrap}>
         {layers.map((L, i) => (
           <View
@@ -110,8 +112,9 @@ export function EditorScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#fff' },
-  signOut: { position: 'absolute', top: 8, right: 12, zIndex: 50, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.06)' },
-  signOutText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
+  topBack: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 60 },
+  topTitle: { fontSize: 14, color: '#555', fontWeight: '600' },
   canvasWrap: { flex: 1, backgroundColor: '#fff' },
   panel: {
     paddingTop: 8, paddingBottom: 28, paddingHorizontal: 12, gap: 6,
