@@ -10,6 +10,7 @@ import { LoginScreen } from './src/auth/LoginScreen'
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen'
 import { CanvasScreen } from './src/screens/CanvasScreen'
 import { CreateCanvasScreen } from './src/screens/CreateCanvasScreen'
+import { ProfileScreen } from './src/screens/ProfileScreen'
 import { GoldenScreen } from './src/golden/GoldenScreen'
 
 /**
@@ -20,6 +21,7 @@ import { GoldenScreen } from './src/golden/GoldenScreen'
 type Route =
   | { name: 'discovery' }
   | { name: 'create' }
+  | { name: 'profile' }
   | { name: 'golden' }
   | { name: 'canvas'; canvasId: string }
   | { name: 'editor'; canvasId: string; tile: Tile }
@@ -47,6 +49,7 @@ export default function App() {
       <DiscoveryScreen
         onOpen={(canvasId) => setRoute({ name: 'canvas', canvasId })}
         onCreate={() => setRoute({ name: 'create' })}
+        onProfile={() => setRoute({ name: 'profile' })}
         onDevTools={() => setRoute({ name: 'golden' })}
       />
     )
@@ -55,6 +58,13 @@ export default function App() {
       <CreateCanvasScreen
         onBack={() => setRoute({ name: 'discovery' })}
         onCreated={(canvasId) => setRoute({ name: 'canvas', canvasId })}
+      />
+    )
+  } else if (route.name === 'profile') {
+    content = (
+      <ProfileScreen
+        onBack={() => setRoute({ name: 'discovery' })}
+        onOpen={(canvasId) => setRoute({ name: 'canvas', canvasId })}
       />
     )
   } else if (route.name === 'golden') {
