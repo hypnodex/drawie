@@ -24,7 +24,9 @@ export type SupabaseConfig = {
 }
 
 export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient<Database> {
-  return createClient<Database>(cfg.url, cfg.anonKey, {
+  // createClient throws on an empty key; fall back to a clearly-bogus one so a misconfigured
+  // app boots to the login screen (auth calls then fail cleanly) instead of red-crashing.
+  return createClient<Database>(cfg.url || 'http://localhost', cfg.anonKey || 'anon-key-not-configured', {
     auth: {
       persistSession: true,
       autoRefreshToken: true,

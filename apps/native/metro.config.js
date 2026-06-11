@@ -23,4 +23,15 @@ config.resolver.extraNodeModules = {
   '@drawie/data': path.resolve(repoRoot, 'packages/data'),
 }
 
+// @drawie/data's moderationService dynamically imports heavy WEB-ONLY ML libs (TensorFlow.js /
+// nsfwjs / tesseract.js) for client-side NSFW+OCR moderation. Native pulls the service in via the
+// barrel export but never runs that path (it moderates via the server-side `moderate` edge
+// function), so resolve those to empty modules — they're not installed for native and don't belong.
+const WEB_ONLY = new Set(['@tensorflow/tfjs', 'nsfwjs', 'tesseract.js'])
+const defaultResolveRequest = config.resolver.resolveRequest
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (WEB_ONLY.has(moduleName)) return { type: 'empty' }
+  return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform)
+}
+
 module.exports = config

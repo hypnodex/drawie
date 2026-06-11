@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
+import { supabase } from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
@@ -52,6 +53,9 @@ export function EditorScreen() {
 
   return (
     <View style={styles.fill}>
+      <Pressable style={styles.signOut} onPress={() => supabase.auth.signOut()}>
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
       <View style={styles.canvasWrap}>
         {layers.map((L, i) => (
           <View
@@ -106,6 +110,8 @@ export function EditorScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#fff' },
+  signOut: { position: 'absolute', top: 8, right: 12, zIndex: 50, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.06)' },
+  signOutText: { fontSize: 12, color: '#666', fontWeight: '600' },
   canvasWrap: { flex: 1, backgroundColor: '#fff' },
   panel: {
     paddingTop: 8, paddingBottom: 28, paddingHorizontal: 12, gap: 6,
