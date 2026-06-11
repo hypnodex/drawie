@@ -26,13 +26,18 @@ type Route =
   | { name: 'canvas'; canvasId: string }
   | { name: 'editor'; canvasId: string; tile: Tile }
 
+// OAuth codes already exchanged this session — guards against the redirect being delivered twice
+// (getInitialURL + the 'url' event). Module-level so it survives effect re-runs.
+const handledOAuthCodes = new Set<string>()
+
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [route, setRoute] = useState<Route>({ name: 'discovery' })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      console.log('[auth] state:', event, s ? `(session ${s.user.email ?? s.user.id})` : '(no session)')
       setSession(s)
       if (!s) setRoute({ name: 'discovery' }) // reset nav on sign-out
     })
@@ -48,7 +53,10 @@ export default function App() {
       const err = url.match(/[?&]error[^=]*=([^&]+)/)?.[1]
       if (err) { console.warn('[auth] OAuth redirect error:', decodeURIComponent(err)); return }
       const code = url.match(/[?&]code=([^&]+)/)?.[1]
-      if (!code) return
+      // Dedupe: the redirect can arrive via BOTH getInitialURL (cold) and the 'url' event, but the
+      // PKCE code is single-use — exchanging twice yields a benign "invalid flow state". Skip repeats.
+      if (!code || handledOAuthCodes.has(code)) return
+      handledOAuthCodes.add(code)
       const { error } = await supabase.auth.exchangeCodeForSession(decodeURIComponent(code))
       if (error) console.warn('[auth] code exchange failed:', error.message)
     }
