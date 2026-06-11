@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native'
 import { getCanvas, getTilesForCanvas, claimTile, type Canvas, type Tile } from '@drawie/data'
+import { useRealtimeTiles } from '../hooks/useRealtimeTiles'
+import { useRealtimeCanvas } from '../hooks/useRealtimeCanvas'
 
 /**
- * Canvas detail — the tile grid. Tap an empty tile to claim it (claim_tile RPC, idempotent)
- * and open the editor to draw it. Completed tiles are shown but not editable.
+ * Canvas detail — the tile grid, LIVE. Subscribes to realtime tile + canvas changes so the grid
+ * flips status as other artists claim/submit and progress ticks up without a refresh. When the
+ * canvas completes, the composited mosaic (canvas.artworkUrl, public URL from composite-mosaic)
+ * is revealed in place of the grid. Tap an empty tile to claim it (claim_tile RPC) and draw it.
  */
 export function CanvasScreen({
   canvasId, onBack, onDraw,
@@ -18,19 +22,29 @@ export function CanvasScreen({
   const [error, setError] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
 
-  const load = async () => {
+  // Split loaders so realtime can refresh just the side that changed (and a transient realtime
+  // refetch error doesn't blow away already-loaded data — only the first load surfaces a fatal error).
+  const loadCanvas = useCallback(async () => {
+    try { setCanvas(await getCanvas(canvasId)) }
+    catch (e) { setError((prev) => prev ?? (e instanceof Error ? e.message : String(e))) }
+  }, [canvasId])
+  const loadTiles = useCallback(async () => {
+    try { setTiles(await getTilesForCanvas(canvasId)) }
+    catch (e) { setError((prev) => prev ?? (e instanceof Error ? e.message : String(e))) }
+  }, [canvasId])
+  const load = useCallback(async () => {
     setError(null)
-    try {
-      const [c, t] = await Promise.all([getCanvas(canvasId), getTilesForCanvas(canvasId)])
-      setCanvas(c)
-      setTiles(t)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
-  useEffect(() => { void load() }, [canvasId])
+    await Promise.all([loadCanvas(), loadTiles()])
+  }, [loadCanvas, loadTiles])
+  useEffect(() => { void load() }, [load])
+
+  // Live: tile status changes refresh the grid; canvas row changes (progress / status / artwork_url)
+  // refresh the header + drive the reveal.
+  useRealtimeTiles(canvasId, loadTiles)
+  useRealtimeCanvas(canvasId, loadCanvas)
 
   const cols = tiles && tiles.length ? Math.max(...tiles.map((t) => t.col)) + 1 : 1
+  const isCompleted = canvas?.status === 'completed'
 
   const onTile = async (tile: Tile) => {
     if (tile.status === 'completed' || claiming) return
@@ -42,7 +56,7 @@ export function CanvasScreen({
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg.includes('TILE_UNAVAILABLE') ? 'That tile was just taken — pick another.' : msg)
-      void load()
+      void loadTiles()
     } finally {
       setClaiming(null)
     }
@@ -66,21 +80,49 @@ export function CanvasScreen({
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
           {!!error && <Text style={styles.errorInline}>{error}</Text>}
-          <Text style={styles.hint}>Tap an empty tile to claim + draw it.</Text>
-          <View style={styles.grid}>
-            {tiles!.map((t) => (
-              <Pressable
-                key={t.id}
-                onPress={() => onTile(t)}
-                disabled={t.status === 'completed' || !!claiming}
-                style={[styles.cell, { width: `${100 / cols}%` }]}
-              >
-                <View style={[styles.cellInner, cellStyle(t.status), claiming === t.id && styles.cellClaiming]}>
-                  {claiming === t.id && <ActivityIndicator size="small" color="#fff" />}
+
+          {canvas && (
+            <Text style={styles.progress}>
+              {canvas.completedTiles}/{canvas.totalTiles} tiles
+              {canvas.activeContributors > 0 ? ` · ${canvas.activeContributors} drawing` : ''}
+            </Text>
+          )}
+
+          {isCompleted ? (
+            // ── Reveal ──────────────────────────────────────────────────────────────────
+            <View style={styles.revealWrap}>
+              <Text style={styles.revealTitle}>✨ Mosaic complete</Text>
+              {canvas?.artworkUrl ? (
+                <Image source={{ uri: canvas.artworkUrl }} style={styles.reveal} resizeMode="cover" />
+              ) : (
+                // The last tile flipped the canvas to completed; composite-mosaic runs async, so
+                // artwork_url lands a moment later — the canvas subscription reloads us when it does.
+                <View style={[styles.reveal, styles.revealPending]}>
+                  <ActivityIndicator color="#7c8cff" />
+                  <Text style={styles.revealHint}>Compositing the mosaic…</Text>
                 </View>
-              </Pressable>
-            ))}
-          </View>
+              )}
+            </View>
+          ) : (
+            // ── Live tile grid ──────────────────────────────────────────────────────────
+            <>
+              <Text style={styles.hint}>Tap an empty tile to claim + draw it.</Text>
+              <View style={styles.grid}>
+                {tiles!.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => onTile(t)}
+                    disabled={t.status === 'completed' || !!claiming}
+                    style={[styles.cell, { width: `${100 / cols}%` }]}
+                  >
+                    <View style={[styles.cellInner, cellStyle(t.status), claiming === t.id && styles.cellClaiming]}>
+                      {claiming === t.id && <ActivityIndicator size="small" color="#fff" />}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
         </ScrollView>
       )}
     </View>
@@ -103,9 +145,15 @@ const styles = StyleSheet.create({
   retry: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#7c8cff' },
   retryText: { color: '#fff', fontWeight: '700' },
   scroll: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  progress: { fontSize: 13, color: '#555', fontWeight: '600', textAlign: 'center', marginBottom: 10 },
   hint: { fontSize: 13, color: '#888', textAlign: 'center', marginBottom: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { aspectRatio: 1, padding: 2 },
   cellInner: { flex: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   cellClaiming: { opacity: 0.7 },
+  revealWrap: { alignItems: 'center', gap: 12 },
+  revealTitle: { fontSize: 18, fontWeight: '800', color: '#1a1a2e', marginTop: 4 },
+  reveal: { width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: '#f4f4f6' },
+  revealPending: { alignItems: 'center', justifyContent: 'center', gap: 10 },
+  revealHint: { fontSize: 13, color: '#888' },
 })
