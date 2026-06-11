@@ -3,7 +3,8 @@ import type {
 } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
-  type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage,
+  FilterMode, MipmapMode,
+  type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage, type SkData,
 } from '@shopify/react-native-skia'
 import { getTexturePixels } from './textures'
 
@@ -26,6 +27,16 @@ export class RNSkiaBackend implements RendererBackend {
   private skc: SkCanvas
   private paint: SkPaint
   private owned: boolean
+  // Texture tiles built ONCE per texture (not a fresh mask image per stamp). Kept alive for
+  // the backend's lifetime; SkData held alongside the SkImage so it isn't GC'd out from under it.
+  private textureTiles = new Map<BrushTexture, { img: SkImage; data: SkData } | null>()
+  // fillCircle paint-state cache: bristle brushes (inkbrush/drybrush) issue up to 30 fillCircles
+  // per stamp that share shader/style/AA/blend/colour — only ALPHA + position vary. Track the
+  // cached state so each bristle costs just setAlphaf + drawCircle (≈2 JSI) instead of re-setting
+  // the whole paint and re-parsing the colour string (≈8 JSI). Invalidated by any other paint op.
+  private cValid = false
+  private cColor = ''
+  private cComposite: CompositeOp | undefined = undefined
 
   constructor(surface: SkSurface, owned = false) {
     this.surface = surface
@@ -66,16 +77,35 @@ export class RNSkiaBackend implements RendererBackend {
 
   fillCircle(x: number, y: number, r: number, color: string, alpha: number, composite?: CompositeOp) {
     const p = this.paint
+    // Fast path for opaque '#rrggbb' (all bristle/pencil/spray dots): set the full paint state +
+    // opaque colour ONCE, then vary only alpha per dot. setAlphaf replaces the colour's alpha, so
+    // this is identical to setColor(colour@alpha) for opaque base colours.
+    if (color.length === 7 && color[0] === '#') {
+      if (!this.cValid || color !== this.cColor || composite !== this.cComposite) {
+        p.setShader(null)
+        p.setStyle(PaintStyle.Fill)
+        p.setAntiAlias(true)
+        p.setBlendMode(this.blend(composite))
+        p.setColor(Skia.Color(color))
+        this.cColor = color; this.cComposite = composite; this.cValid = true
+      }
+      p.setAlphaf(alpha)
+      this.skc.drawCircle(x, y, r, p)
+      return
+    }
+    // Uncommon (transparent / rgba-with-alpha): full path.
     p.setShader(null)
     p.setStyle(PaintStyle.Fill)
     p.setAntiAlias(true)
     p.setBlendMode(this.blend(composite))
     p.setColor(this.color(color, alpha))
     this.skc.drawCircle(x, y, r, p)
+    this.cValid = false
   }
 
   strokeLine(x0: number, y0: number, x1: number, y1: number, width: number, color: string, alpha: number, composite?: CompositeOp) {
     const p = this.paint
+    this.cValid = false
     p.setShader(null)
     p.setStyle(PaintStyle.Stroke)
     p.setStrokeWidth(width)
@@ -90,6 +120,7 @@ export class RNSkiaBackend implements RendererBackend {
 
   fillRect(x: number, y: number, w: number, h: number, color: string, alpha: number, composite?: CompositeOp) {
     const p = this.paint
+    this.cValid = false
     p.setShader(null)
     p.setStyle(PaintStyle.Fill)
     p.setAntiAlias(false)
@@ -110,9 +141,11 @@ export class RNSkiaBackend implements RendererBackend {
     // VERIFY: MakeRadialGradient(center: SkPoint, radius, colors: SkColor[], pos, tileMode, localMatrix?, flags?)
     const shader = Skia.Shader.MakeRadialGradient(Skia.Point(cx, cy), rOuter, colors, pos, TileMode.Clamp)
     const p = this.paint
+    this.cValid = false
     p.setStyle(PaintStyle.Fill)
     p.setAntiAlias(true)
     p.setBlendMode(this.blend(composite))
+    p.setAlphaf(1) // gradient bakes its own alpha; clear any leftover setAlphaf from fillCircle
     p.setShader(shader)
     this.skc.drawRect(Skia.XYWHRect(box.x, box.y, box.w, box.h), p)
     p.setShader(null)
@@ -140,6 +173,7 @@ export class RNSkiaBackend implements RendererBackend {
     )
     if (!img) { data.dispose(); return }
     const p = this.paint
+    this.cValid = false
     p.setShader(null)
     p.setBlendMode(BlendMode.Src) // replace dest pixels
     p.setAlphaf(1)
@@ -159,6 +193,7 @@ export class RNSkiaBackend implements RendererBackend {
   drawSurface(src: RendererBackend, dx: number, dy: number, composite?: CompositeOp, globalAlpha = 1) {
     const img = (src as RNSkiaBackend).surface.makeImageSnapshot()
     const p = this.paint
+    this.cValid = false
     p.setShader(null)
     p.setBlendMode(this.blend(composite))
     p.setAlphaf(globalAlpha)
@@ -175,39 +210,47 @@ export class RNSkiaBackend implements RendererBackend {
   restoreFrom(img: SkImage) {
     this.skc.clear(Skia.Color('rgba(0,0,0,0)'))
     const p = this.paint
+    this.cValid = false
     p.setShader(null)
     p.setBlendMode(BlendMode.SrcOver)
     p.setAlphaf(1)
     this.skc.drawImage(img, 0, 0, p)
   }
 
-  maskWithTexture(texture: BrushTexture, rectX: number, rectY: number, w: number, h: number, worldX: number, worldY: number) {
+  /** Texture grain as a single repeat-tiled SkImage, built once per texture and cached. */
+  private getTextureTile(texture: BrushTexture): SkImage | null {
+    const cached = this.textureTiles.get(texture)
+    if (cached !== undefined) return cached?.img ?? null
     const tex = getTexturePixels(texture)
-    if (!tex) return
-    const S = tex.size, td = tex.data
-    const ox = Math.floor(rectX + worldX), oy = Math.floor(rectY + worldY)
-    const mask = new Uint8ClampedArray(w * h * 4)
-    for (let yy = 0; yy < h; yy++) {
-      const ty = (((yy + oy) % S) + S) % S
-      for (let xx = 0; xx < w; xx++) {
-        const tx = (((xx + ox) % S) + S) % S
-        const mi = (yy * w + xx) * 4
-        mask[mi] = 255; mask[mi + 1] = 255; mask[mi + 2] = 255
-        mask[mi + 3] = td[(ty * S + tx) * 4 + 3]
-      }
-    }
-    const data = Skia.Data.fromBytes(new Uint8Array(mask.buffer, mask.byteOffset, mask.byteLength))
+    if (!tex) { this.textureTiles.set(texture, null); return null }
+    const data = Skia.Data.fromBytes(new Uint8Array(tex.data.buffer, tex.data.byteOffset, tex.data.byteLength))
     const img = Skia.Image.MakeImage(
-      { width: w, height: h, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
-      data, w * 4,
+      { width: tex.size, height: tex.size, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
+      data, tex.size * 4,
     )
-    if (!img) { data.dispose(); return }
+    if (!img) { data.dispose(); this.textureTiles.set(texture, null); return null }
+    this.textureTiles.set(texture, { img, data })
+    return img
+  }
+
+  maskWithTexture(texture: BrushTexture, rectX: number, rectY: number, w: number, h: number, worldX: number, worldY: number) {
+    const tile = this.getTextureTile(texture)
+    if (!tile) return
+    // Repeat-tiled grain shader, masked onto the stamp with DstIn. No per-stamp pixel array /
+    // image build — the tile is cached. localMatrix reproduces the OLD per-stamp texture coords
+    // exactly (at device x = rectX+xx it samples tile[(xx+ox) mod S], ox = floor(rectX+worldX)),
+    // so the grain is byte-for-byte the same; Nearest filtering matches the old index sampling.
+    const ox = Math.floor(rectX + worldX), oy = Math.floor(rectY + worldY)
+    const m = Skia.Matrix().translate(rectX - ox, rectY - oy)
+    const shader = tile.makeShaderOptions(TileMode.Repeat, TileMode.Repeat, FilterMode.Nearest, MipmapMode.None, m)
     const p = this.paint
-    p.setShader(null)
+    this.cValid = false
+    p.setShader(shader)
     p.setBlendMode(BlendMode.DstIn)
     p.setAlphaf(1)
-    this.skc.drawImage(img, rectX, rectY, p)
-    img.dispose(); data.dispose()
+    this.skc.drawRect(Skia.XYWHRect(rectX, rectY, w, h), p)
+    p.setShader(null)
+    shader.dispose() // cheap wrapper (no pixel data); the tile image stays cached
   }
 
   flush() {
@@ -217,6 +260,8 @@ export class RNSkiaBackend implements RendererBackend {
   }
 
   dispose() {
+    for (const t of this.textureTiles.values()) { t?.img.dispose(); t?.data.dispose() }
+    this.textureTiles.clear()
     if (this.owned) this.surface.dispose?.()
   }
 }
