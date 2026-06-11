@@ -7,10 +7,11 @@ export const PALETTE = [
   '#06d6a0', '#118ab2', '#7c8cff', '#9b5de5', '#8d6e63', '#073b4c',
 ]
 
-export function ColorPalette({ color, onChange }: { color: string; onChange: (c: string) => void }) {
+export function ColorPalette({ color, onChange, palette }: { color: string; onChange: (c: string) => void; palette?: string[] }) {
+  const swatches = palette && palette.length ? palette : PALETTE // canvas-restricted palette overrides the default
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-      {PALETTE.map((c) => {
+      {swatches.map((c) => {
         const active = c.toLowerCase() === color.toLowerCase()
         return (
           <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, active && styles.active]}>

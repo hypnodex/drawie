@@ -15,7 +15,7 @@ export function CanvasScreen({
 }: {
   canvasId: string
   onBack: () => void
-  onDraw: (tile: Tile) => void
+  onDraw: (tile: Tile, canvas: Canvas) => void
 }) {
   const [canvas, setCanvas] = useState<Canvas | null>(null)
   const [tiles, setTiles] = useState<Tile[] | null>(null)
@@ -47,12 +47,12 @@ export function CanvasScreen({
   const isCompleted = canvas?.status === 'completed'
 
   const onTile = async (tile: Tile) => {
-    if (tile.status === 'completed' || claiming) return
+    if (tile.status === 'completed' || claiming || !canvas) return
     setClaiming(tile.id)
     setError(null)
     try {
       const claimed = await claimTile(canvasId, tile.id)
-      onDraw(claimed)
+      onDraw(claimed, canvas) // pass the canvas so the editor can enforce founder palette/tool limits
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg.includes('TILE_UNAVAILABLE') ? 'That tile was just taken — pick another.' : msg)

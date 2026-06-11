@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
 import { StyleSheet, View, ActivityIndicator, Linking } from 'react-native'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, type Tile } from '@drawie/data'
+import { supabase, type Tile, type Canvas } from '@drawie/data'
 import { EditorScreen } from './src/EditorScreen'
 import { LoginScreen } from './src/auth/LoginScreen'
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen'
@@ -24,7 +24,7 @@ type Route =
   | { name: 'profile' }
   | { name: 'golden' }
   | { name: 'canvas'; canvasId: string }
-  | { name: 'editor'; canvasId: string; tile: Tile }
+  | { name: 'editor'; canvasId: string; tile: Tile; canvas: Canvas }
 
 // OAuth codes already exchanged this session — guards against the redirect being delivered twice
 // (getInitialURL + the 'url' event). Module-level so it survives effect re-runs.
@@ -100,7 +100,7 @@ export default function App() {
       <CanvasScreen
         canvasId={route.canvasId}
         onBack={() => setRoute({ name: 'discovery' })}
-        onDraw={(tile) => setRoute({ name: 'editor', canvasId: route.canvasId, tile })}
+        onDraw={(tile, canvas) => setRoute({ name: 'editor', canvasId: route.canvasId, tile, canvas })}
       />
     )
   } else {
@@ -108,6 +108,7 @@ export default function App() {
       <EditorScreen
         canvasId={route.canvasId}
         tile={route.tile}
+        canvas={route.canvas}
         onExit={() => setRoute({ name: 'canvas', canvasId: route.canvasId })}
       />
     )

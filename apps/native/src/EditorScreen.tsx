@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import { uploadTileArtwork, completeTileAndMaybeReveal, moderateContent, GUIDELINES_MESSAGE, type Tile } from '@drawie/data'
+import { uploadTileArtwork, completeTileAndMaybeReveal, moderateContent, GUIDELINES_MESSAGE, type Tile, type Canvas } from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
@@ -40,9 +40,16 @@ function toModerationDataUrl(composite: SkImage): string {
  * non-active wrappers are pointerEvents="none", so touches fall through to the active one).
  * Undo/redo/clear route to the active layer's ref; history is tracked per layer.
  */
-export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; tile?: Tile; onExit?: () => void }) {
-  const [tool, setTool] = useState<ToolId>('brush')
-  const [settingsMap, setSettingsMap] = useState<ToolSettingsMap>(DEFAULT_SETTINGS)
+export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: string; tile?: Tile; canvas?: Canvas; onExit?: () => void }) {
+  // Founder constraints — restrict the tool bar + colour palette to what this canvas allows.
+  const allowedTools = canvas?.allowedTools?.length ? TOOL_IDS.filter((t) => canvas.allowedTools.includes(t)) : TOOL_IDS
+  const palette = canvas?.colorPalette ?? undefined
+  const [tool, setTool] = useState<ToolId>(() => allowedTools[0] ?? 'brush')
+  const [settingsMap, setSettingsMap] = useState<ToolSettingsMap>(() => {
+    if (!palette?.length) return DEFAULT_SETTINGS
+    const forced = palette[0] // every tool starts on a palette colour so the restriction holds before first pick
+    return Object.fromEntries(TOOL_IDS.map((t) => [t, { ...DEFAULT_SETTINGS[t], color: forced }])) as ToolSettingsMap
+  })
   const [layers, setLayers] = useState<LayerMeta[]>([{ id: 1, visible: true, opacity: 1 }])
   const [activeId, setActiveId] = useState(1)
   const [histById, setHistById] = useState<Record<number, { canUndo: boolean; canRedo: boolean }>>({})
@@ -145,6 +152,7 @@ export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; ti
         )}
       </View>
       {!!submitError && <Text style={styles.submitError} numberOfLines={2}>{submitError}</Text>}
+      {!!canvas?.styleGuidance && <Text style={styles.rules} numberOfLines={2}>“{canvas.styleGuidance}”</Text>}
       <View style={styles.canvasWrap}>
         {layers.map((L, i) => (
           <View
@@ -164,7 +172,7 @@ export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; ti
       </View>
 
       <View style={styles.panel}>
-        <ColorPalette color={s.color} onChange={(c) => patch({ color: c })} />
+        <ColorPalette color={s.color} onChange={(c) => patch({ color: c })} palette={palette} />
         <Slider label="Size" value={s.size} min={1} max={120} onChange={(v) => patch({ size: v })} />
         <Slider label="Opacity" value={s.opacity} min={0.05} max={1} step={0.01} onChange={(v) => patch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
         <Slider label="Hardness" value={s.hardness} min={0} max={1} step={0.01} onChange={(v) => patch({ hardness: v })} format={(v) => `${Math.round(v * 100)}%`} />
@@ -182,7 +190,7 @@ export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; ti
             <Text style={styles.actionText}>↷</Text>
           </Pressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools} style={styles.toolsScroll}>
-            {TOOL_IDS.map((id) => (
+            {allowedTools.map((id) => (
               <Pressable key={id} onPress={() => setTool(id)} style={[styles.tool, tool === id && styles.toolActive]}>
                 <Text style={[styles.toolText, tool === id && styles.toolTextActive]}>{id}</Text>
               </Pressable>
@@ -202,6 +210,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
   topBack: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 60 },
   topTitle: { fontSize: 14, color: '#555', fontWeight: '600' },
+  rules: { fontSize: 12, color: '#888', fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 16, paddingTop: 4 },
   submit: { minWidth: 60, height: 32, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 16, backgroundColor: '#7c8cff' },
   submitOff: { opacity: 0.5 },
   submitText: { fontSize: 13, color: '#fff', fontWeight: '700' },

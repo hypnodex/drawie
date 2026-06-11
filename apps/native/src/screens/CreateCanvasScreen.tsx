@@ -6,6 +6,9 @@ import {
   createCanvas, getProfile, computeEntitlement, moderateContent, GUIDELINES_MESSAGE,
   supabase, type Entitlement,
 } from '@drawie/data'
+import type { ToolId } from '@drawie/core'
+import { PALETTE } from '../ui/ColorPalette'
+import { TOOL_IDS } from '../tools'
 
 // Mirrors the web mock lists (apps/web/src/mock) — kept local so native doesn't depend on the web app.
 const CATEGORIES = ['Landscape', 'Portrait', 'Abstract', 'Character', 'Surreal', 'Sci-Fi', 'Botanical', 'Architecture', 'Animal', 'Mythical']
@@ -36,8 +39,13 @@ export function CreateCanvasScreen({
   const [style, setStyle] = useState('Painterly')
   const [styleGuidance, setStyleGuidance] = useState('')
   const [grid, setGrid] = useState(GRID_PRESETS[1]) // 5×5 default
+  const [paletteColors, setPaletteColors] = useState<string[]>([]) // empty = any colour
+  const [toolSel, setToolSel] = useState<ToolId[]>([]) // empty = all tools
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const toggleColor = (c: string) => setPaletteColors((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]))
+  const toggleTool = (t: ToolId) => setToolSel((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]))
 
   // Pre-check entitlement so a non-eligible user sees a clear locked state rather than hitting the
   // server-side NOT_ENTITLED wall on submit. (The RPC is still the real gate.)
@@ -76,8 +84,8 @@ export function CreateCanvasScreen({
         style,
         gridRows: grid.rows,
         gridCols: grid.cols,
-        allowedTools: [],
-        colorPalette: null,
+        allowedTools: toolSel,
+        colorPalette: paletteColors.length ? paletteColors : null,
         background: '#ffffff',
         styleGuidance: styleGuidance.trim(),
         participationMode: 'free-pick',
@@ -150,6 +158,28 @@ export function CreateCanvasScreen({
             </View>
           </Field>
 
+          <Field label="Colours" hint={paletteColors.length ? `${paletteColors.length} selected` : 'Any colour'}>
+            <View style={styles.swatchWrap}>
+              {PALETTE.map((c) => (
+                <Pressable
+                  key={c}
+                  onPress={() => toggleColor(c)}
+                  style={[styles.swatch, { backgroundColor: c }, paletteColors.includes(c) && styles.swatchOn]}
+                />
+              ))}
+            </View>
+          </Field>
+
+          <Field label="Tools" hint={toolSel.length ? `${toolSel.length} selected` : 'All tools'}>
+            <View style={styles.chipsWrap}>
+              {TOOL_IDS.map((t) => (
+                <Pressable key={t} onPress={() => toggleTool(t)} style={[styles.chip, toolSel.includes(t) && styles.chipOn]}>
+                  <Text style={[styles.chipText, toolSel.includes(t) && styles.chipTextOn]}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Field>
+
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <Pressable
@@ -159,7 +189,7 @@ export function CreateCanvasScreen({
           >
             {creating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.createText}>Create canvas</Text>}
           </Pressable>
-          <Text style={styles.note}>Public · free-pick · any colour & tool. You'll draw the first tile.</Text>
+          <Text style={styles.note}>Public · free-pick. Colour/tool limits apply to everyone. You'll draw the first tile.</Text>
         </ScrollView>
       )}
     </View>
@@ -208,6 +238,9 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#e3e3e8', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: '#1a1a2e', backgroundColor: '#fafafc' },
   multiline: { minHeight: 72, textAlignVertical: 'top' },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  swatchWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(0,0,0,0.12)' },
+  swatchOn: { borderWidth: 3, borderColor: '#1a1a2e' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#ececf2' },
   chipOn: { backgroundColor: '#7c8cff' },
