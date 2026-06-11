@@ -2,7 +2,7 @@ import './src/supabase' // initialises the Supabase client — must run before a
 import { useEffect, useState } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, View, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, ActivityIndicator, Linking } from 'react-native'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, type Tile } from '@drawie/data'
 import { EditorScreen } from './src/EditorScreen'
@@ -37,6 +37,24 @@ export default function App() {
       if (!s) setRoute({ name: 'discovery' }) // reset nav on sign-out
     })
     return () => sub.subscription.unsubscribe()
+  }, [])
+
+  // OAuth deep-link: Google sign-in opens a browser that redirects to drawie://auth-callback?code=…
+  // (PKCE). Exchange that code for a session here; onAuthStateChange above then swaps to the product.
+  // Built-in Linking (no expo-web-browser) so it works on the current dev build without a native rebuild.
+  useEffect(() => {
+    const handleUrl = async (url: string | null) => {
+      if (!url) return
+      const err = url.match(/[?&]error[^=]*=([^&]+)/)?.[1]
+      if (err) { console.warn('[auth] OAuth redirect error:', decodeURIComponent(err)); return }
+      const code = url.match(/[?&]code=([^&]+)/)?.[1]
+      if (!code) return
+      const { error } = await supabase.auth.exchangeCodeForSession(decodeURIComponent(code))
+      if (error) console.warn('[auth] code exchange failed:', error.message)
+    }
+    void Linking.getInitialURL().then(handleUrl) // cold start via the deep link
+    const sub = Linking.addEventListener('url', ({ url }) => void handleUrl(url)) // warm
+    return () => sub.remove()
   }, [])
 
   let content

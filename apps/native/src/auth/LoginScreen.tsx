@@ -1,10 +1,14 @@
 import { useState } from 'react'
-import { StyleSheet, View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
+import { StyleSheet, View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from 'react-native'
 import { supabase } from '@drawie/data'
 
+/** drawie:// deep link the OAuth provider redirects back to; App.tsx exchanges the ?code for a session. */
+const OAUTH_REDIRECT = 'drawie://auth-callback'
+
 /**
- * Minimal email/password sign-in for the native app (STEP 5). OAuth (Google) via the drawie://
- * deep link + dev personas come later; this is enough to authenticate against the shared backend.
+ * Email/password + Google OAuth + guest sign-in for the native app. Google uses the PKCE deep-link
+ * flow: signInWithOAuth(skipBrowserRedirect) → open the provider URL in the system browser → it
+ * redirects to OAUTH_REDIRECT, which App.tsx catches and exchanges for a session.
  */
 export function LoginScreen() {
   const [email, setEmail] = useState('')
@@ -19,6 +23,23 @@ export function LoginScreen() {
     if (error) setError(error.message)
     setBusy(false)
     // success → App's onAuthStateChange swaps to the editor.
+  }
+
+  const signInGoogle = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: OAUTH_REDIRECT, skipBrowserRedirect: true },
+      })
+      if (error) throw error
+      if (data?.url) await Linking.openURL(data.url) // browser → redirect → App.tsx exchanges the code
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false) // the user is in the browser now; the screen stays until the session lands
+    }
   }
 
   // Anonymous session (enabled on the project) — quick end-to-end auth test, no account needed.
@@ -56,6 +77,10 @@ export function LoginScreen() {
         <View style={styles.dividerRow}>
           <View style={styles.divider} /><Text style={styles.dividerText}>or</Text><View style={styles.divider} />
         </View>
+        <Pressable style={styles.googleButton} onPress={signInGoogle} disabled={busy}>
+          <Text style={styles.googleG}>G</Text>
+          <Text style={styles.googleText}>Continue with Google</Text>
+        </Pressable>
         <Pressable style={styles.guestButton} onPress={continueAsGuest} disabled={busy}>
           <Text style={styles.guestText}>Continue as guest</Text>
         </Pressable>
@@ -80,6 +105,9 @@ const styles = StyleSheet.create({
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
   divider: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#ddd' },
   dividerText: { color: '#aaa', fontSize: 12 },
+  googleButton: { height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e6', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#fff' },
+  googleG: { fontSize: 18, fontWeight: '800', color: '#4285F4' },
+  googleText: { color: '#3c4043', fontSize: 15, fontWeight: '600' },
   guestButton: { height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e6', alignItems: 'center', justifyContent: 'center' },
   guestText: { color: '#555', fontSize: 15, fontWeight: '600' },
 })
