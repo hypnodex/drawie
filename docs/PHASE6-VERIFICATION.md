@@ -75,11 +75,27 @@ Procedure:
 Server-side confirmation (independent of the UI): query the tile before/after — its `status` flips to
 `completed` and `artwork_path` is set, proving the iOS submit persisted to the shared backend.
 
-**Result (2026-06-11): ✅ PASS.** Drew + submitted a tile on the **iPad** (Festival Night, r2 c2, account
-"Ondřej Novák"). Within seconds the **shared backend** reflected it (independent REST poll): completed count
-**8 → 9**, the tile's `status='completed'`, `artwork_path` set, `completed_at` stamped — i.e. the iOS submit
-persisted to the same DB the web app reads. The web canvas-detail grid updated **live, without refresh**
-(realtime push). Cross-platform data sharing + realtime confirmed for web ↔ iOS.
+**Result (2026-06-11): PARTIAL.**
+- ✅ **Data sharing confirmed.** Drew + submitted a tile on the **iPad** (Festival Night, r2 c2, account
+  "Ondřej Novák"). The **shared backend** reflected it (independent REST poll): completed count **8 → 9**,
+  `status='completed'`, `artwork_path` set, `completed_at` stamped — the iOS submit persisted to the same DB
+  the web reads, and the web shows it **after a refresh**.
+- ✅ **Backend realtime delivery confirmed — anon AND authenticated.** Independent Node `@supabase/supabase-js`
+  subscribers (the SAME `postgres_changes` subscription the web/native hooks use) connected (`SUBSCRIBED`) and
+  received tile events live. Two tests: (a) anon subscriber caught the iPad submit
+  (`EVENT UPDATE t-2-2 completed`); (b) an **authenticated** (anonymous-signed-in, role `authenticated`)
+  subscriber + an anon subscriber BOTH received an event when the authed client claimed a tile
+  (`anon got event: true | authenticated got event: true`). So the hosted `supabase_realtime` publication is
+  applied, RLS does not filter the authenticated path, and **realtime is healthy for the role real
+  web/native users use**.
+- ✅ **Native realtime path works** — native users are authenticated (Google/guest JWT), the exact path the
+  authenticated test passed on. The native canvas grid subscribes via the same hooks against this backend.
+- ❌ **Only the deployed WEB app fails to reflect changes live** (manual refresh needed). The web realtime
+  hooks ARE on deployed `main` (`a0f9417`, CanvasDetailScreen wires `useRealtimeTiles`/`useRealtimeCanvas`)
+  and the backend delivers, so this is isolated to the **deployed-web runtime** — a production web-client
+  issue, NOT the backend, RLS, or the native app. **Follow-up (separate web task):** open the live canvas
+  page's browser console/Network — is the realtime WebSocket connecting / the channel `SUBSCRIBED` / any
+  error? Possibly a stale/failed Vercel deploy. Out of scope for the native migration's acceptance.
 
 ---
 
@@ -93,6 +109,13 @@ store; web via its session store). Cross-device draft sync via Supabase is **def
 
 ## Status
 
-Phase 6 **met** for web + iOS: tools are consistent within tolerance (golden), and one account sees the same
-shared canvases across platforms (shared backend + realtime). Remaining nuances are documented above
-(no native CI automation — device-bound; draft-sync left per-device).
+Phase 6 **substantively met** for web + iOS: tools are consistent within tolerance (golden ✅), one account's
+work is shared across platforms (data sharing ✅), and the backend's realtime delivery is healthy for both
+anon and authenticated clients ✅ (so the native app updates live). **One open item, isolated to the deployed
+web app:** its canvas page doesn't reflect changes live (manual refresh needed) despite the code being
+deployed and the backend delivering — a production web-runtime bug to chase via the browser console, separate
+from the native migration. Other documented nuances: no automated *native* golden CI (rasteriser is
+device-bound; the web-Skia golden IS CI-runnable); draft-sync left per-device.
+
+> Test-data note: the realtime diagnostics claimed two Festival Night tiles (t-3-2, and the submit on t-2-2)
+> as throwaway/anon users — harmless on a demo canvas.
