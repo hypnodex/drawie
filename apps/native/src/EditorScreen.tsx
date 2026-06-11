@@ -129,6 +129,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
       await completeTileAndMaybeReveal(canvasId, tile.id, path)
       onExit?.() // back to the grid; it reloads on mount and shows this tile completed
     } catch (e) {
+      console.warn('[submit] FAILED:', e instanceof Error ? e.message : String(e))
       setSubmitError(e instanceof Error ? e.message : String(e))
       setSubmitting(false)
     } finally {
