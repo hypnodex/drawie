@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native'
-import { getCanvas, getTilesForCanvas, claimTile, type Canvas, type Tile } from '@drawie/data'
+import { getCanvas, getTilesForCanvas, claimTile, getHostId, supabase, type Canvas, type Tile } from '@drawie/data'
 import { useRealtimeTiles } from '../hooks/useRealtimeTiles'
 import { useRealtimeCanvas } from '../hooks/useRealtimeCanvas'
 
@@ -11,16 +11,18 @@ import { useRealtimeCanvas } from '../hooks/useRealtimeCanvas'
  * is revealed in place of the grid. Tap an empty tile to claim it (claim_tile RPC) and draw it.
  */
 export function CanvasScreen({
-  canvasId, onBack, onDraw,
+  canvasId, onBack, onDraw, onManage,
 }: {
   canvasId: string
   onBack: () => void
   onDraw: (tile: Tile, canvas: Canvas) => void
+  onManage?: (canvasId: string) => void
 }) {
   const [canvas, setCanvas] = useState<Canvas | null>(null)
   const [tiles, setTiles] = useState<Tile[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
+  const [isHost, setIsHost] = useState(false)
 
   // Split loaders so realtime can refresh just the side that changed (and a transient realtime
   // refetch error doesn't blow away already-loaded data — only the first load surfaces a fatal error).
@@ -42,6 +44,19 @@ export function CanvasScreen({
   // refresh the header + drive the reveal.
   useRealtimeTiles(canvasId, loadTiles)
   useRealtimeCanvas(canvasId, loadCanvas)
+
+  // Host check — surface the Manage entry only to the host of a private canvas.
+  useEffect(() => {
+    if (canvas?.visibility !== 'private-link') { setIsHost(false); return }
+    let alive = true
+    ;(async () => {
+      try {
+        const [hostId, { data }] = await Promise.all([getHostId(canvasId), supabase.auth.getUser()])
+        if (alive) setIsHost(!!hostId && hostId === data.user?.id)
+      } catch { if (alive) setIsHost(false) }
+    })()
+    return () => { alive = false }
+  }, [canvasId, canvas?.visibility])
 
   const cols = tiles && tiles.length ? Math.max(...tiles.map((t) => t.col)) + 1 : 1
   const isCompleted = canvas?.status === 'completed'
@@ -67,7 +82,11 @@ export function CanvasScreen({
       <View style={styles.header}>
         <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Canvases</Text></Pressable>
         <Text style={styles.title} numberOfLines={1}>{canvas?.title ?? '…'}</Text>
-        <View style={{ width: 64 }} />
+        {isHost && onManage ? (
+          <Pressable onPress={() => onManage(canvasId)} hitSlop={8} style={styles.manage}><Text style={styles.manageText}>Manage</Text></Pressable>
+        ) : (
+          <View style={{ width: 64 }} />
+        )}
       </View>
 
       {tiles === null && !error ? (
@@ -143,6 +162,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   back: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 80 },
   title: { fontSize: 17, fontWeight: '700', color: '#1a1a2e', flex: 1, textAlign: 'center' },
+  manage: { width: 64, alignItems: 'flex-end' },
+  manageText: { fontSize: 14, color: '#7c8cff', fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   error: { color: '#ef476f', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
   errorInline: { color: '#ef476f', fontSize: 13, textAlign: 'center', marginBottom: 8 },

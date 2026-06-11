@@ -11,7 +11,7 @@ const WEB_ORIGIN = 'https://drawie-xi.vercel.app'
  * Join screen. The host link is shown but de-emphasised (control link, keep private). Host console
  * (participants / kick / reassign) is a later increment.
  */
-export function ShareScreen({ canvas, onOpen, onBack }: { canvas: Canvas; onOpen: (id: string) => void; onBack: () => void }) {
+export function ShareScreen({ canvas, onOpen, onManage, onBack }: { canvas: Canvas; onOpen: (id: string) => void; onManage: (id: string) => void; onBack: () => void }) {
   const guestLink = buildGuestLink(WEB_ORIGIN, canvas)
   const hostLink = buildHostLink(WEB_ORIGIN, canvas)
   const shareGuest = () =>
@@ -43,6 +43,9 @@ export function ShareScreen({ canvas, onOpen, onBack }: { canvas: Canvas; onOpen
           <Text selectable style={styles.linkMuted}>{hostLink}</Text>
         </View>
 
+        <Pressable style={styles.manageBtn} onPress={() => onManage(canvas.id)}>
+          <Text style={styles.manageText}>Manage participants</Text>
+        </Pressable>
         <Pressable style={styles.openBtn} onPress={() => onOpen(canvas.id)}>
           <Text style={styles.openText}>Open canvas →</Text>
         </Pressable>
@@ -69,6 +72,8 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   codeRow: { fontSize: 12, color: '#999', marginTop: 2 },
   code: { fontFamily: 'Courier', color: '#1a1a2e', fontWeight: '700' },
+  manageBtn: { backgroundColor: '#1a1a2e', borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  manageText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   openBtn: { borderWidth: 1, borderColor: '#e0e0e6', borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   openText: { color: '#555', fontSize: 15, fontWeight: '600' },
 })

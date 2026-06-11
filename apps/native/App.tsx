@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
 import { StyleSheet, View, ActivityIndicator, Linking } from 'react-native'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, joinPrivateCanvas, type Tile, type Canvas } from '@drawie/data'
+import { supabase, joinPrivateCanvas, resolveHostToken, type Tile, type Canvas } from '@drawie/data'
 import { EditorScreen } from './src/EditorScreen'
 import { LoginScreen } from './src/auth/LoginScreen'
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen'
@@ -13,6 +13,7 @@ import { CreateCanvasScreen } from './src/screens/CreateCanvasScreen'
 import { ProfileScreen } from './src/screens/ProfileScreen'
 import { ShareScreen } from './src/screens/ShareScreen'
 import { JoinScreen } from './src/screens/JoinScreen'
+import { HostConsoleScreen } from './src/screens/HostConsoleScreen'
 import { GoldenScreen } from './src/golden/GoldenScreen'
 
 /**
@@ -26,6 +27,7 @@ type Route =
   | { name: 'profile' }
   | { name: 'share'; canvas: Canvas }
   | { name: 'join' }
+  | { name: 'host'; canvasId: string }
   | { name: 'golden' }
   | { name: 'canvas'; canvasId: string }
   | { name: 'editor'; canvasId: string; tile: Tile; canvas: Canvas }
@@ -34,6 +36,7 @@ type Route =
 // event. Module-level so they survive effect re-runs.
 const handledOAuthCodes = new Set<string>()
 const handledJoinTokens = new Set<string>()
+const handledHostTokens = new Set<string>()
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -57,10 +60,23 @@ export default function App() {
       if (!url) return
       const err = url.match(/[?&]error[^=]*=([^&]+)/)?.[1]
       if (err) { console.warn('[auth] OAuth redirect error:', decodeURIComponent(err)); return }
-      // Private-canvas invite: drawie://join?token=… or …/join/<token> → join + drop into the editor.
-      if (/[?&]token=|\/join\//.test(url)) {
-        const token = url.match(/[?&]token=([^&#]+)/)?.[1] ?? url.match(/\/join\/([^?#/]+)/)?.[1]
-        if (token && !handledJoinTokens.has(token)) {
+      // Private-canvas deep links — both carry ?token=, so disambiguate by host vs join:
+      //   join: drawie://join?token=… or …/join/<token>  → join, get a tile, draw it
+      //   host: drawie://host?token=… or …/host/<token>  → open the host console
+      const isHost = /drawie:\/\/host\b|\/host\//.test(url)
+      const isJoin = /drawie:\/\/join\b|\/join\//.test(url)
+      if (isHost || isJoin) {
+        const token = url.match(/[?&]token=([^&#]+)/)?.[1] ?? url.match(/\/(?:join|host)\/([^?#/]+)/)?.[1]
+        if (!token) return
+        if (isHost) {
+          if (handledHostTokens.has(token)) return
+          handledHostTokens.add(token)
+          try {
+            const canvas = await resolveHostToken(decodeURIComponent(token))
+            setRoute({ name: 'host', canvasId: canvas.id })
+          } catch (e) { console.warn('[host] resolve failed:', e instanceof Error ? e.message : String(e)) }
+        } else {
+          if (handledJoinTokens.has(token)) return
           handledJoinTokens.add(token)
           try {
             const { canvas, tile } = await joinPrivateCanvas(decodeURIComponent(token))
@@ -110,6 +126,7 @@ export default function App() {
       <ShareScreen
         canvas={route.canvas}
         onOpen={(id) => setRoute({ name: 'canvas', canvasId: id })}
+        onManage={(id) => setRoute({ name: 'host', canvasId: id })}
         onBack={() => setRoute({ name: 'discovery' })}
       />
     )
@@ -120,6 +137,8 @@ export default function App() {
         onJoined={(canvas, tile) => setRoute({ name: 'editor', canvasId: canvas.id, tile, canvas })}
       />
     )
+  } else if (route.name === 'host') {
+    content = <HostConsoleScreen canvasId={route.canvasId} onBack={() => setRoute({ name: 'discovery' })} />
   } else if (route.name === 'profile') {
     content = (
       <ProfileScreen
@@ -135,6 +154,7 @@ export default function App() {
         canvasId={route.canvasId}
         onBack={() => setRoute({ name: 'discovery' })}
         onDraw={(tile, canvas) => setRoute({ name: 'editor', canvasId: route.canvasId, tile, canvas })}
+        onManage={(id) => setRoute({ name: 'host', canvasId: id })}
       />
     )
   } else {
