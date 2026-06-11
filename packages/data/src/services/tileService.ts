@@ -61,6 +61,13 @@ export async function claimTile(
   return rowToTile(data as unknown as TileRow)
 }
 
+/** Release a claimed-but-unsubmitted tile back to empty (discard). No-op unless it's the caller's
+ *  own in-progress tile — never touches a completed tile or someone else's. */
+export async function releaseTile(tileId: TileId): Promise<void> {
+  const { error } = await supabase.rpc('release_tile', { p_tile_id: tileId })
+  if (error) throw error
+}
+
 /** Mark the caller's tile complete, recording the uploaded artwork path. */
 export async function completeTile(tileId: TileId, artworkPath?: string): Promise<Tile> {
   const { data, error } = await supabase.rpc('complete_tile', {

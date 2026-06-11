@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import { uploadTileArtwork, completeTileAndMaybeReveal, moderateContent, GUIDELINES_MESSAGE, type Tile, type Canvas } from '@drawie/data'
+import { uploadTileArtwork, completeTileAndMaybeReveal, releaseTile, moderateContent, GUIDELINES_MESSAGE, type Tile, type Canvas } from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
@@ -139,10 +139,31 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   }
   const canSubmit = !!canvasId && !!tile
 
+  // Exiting WITHOUT submitting = discard: release the claimed tile back to empty so it isn't left
+  // stuck in-progress (and others can claim it). Confirm only when there's drawing to lose.
+  const exitOrDiscard = () => {
+    if (submitting) return
+    if (!tile || !canvasId) { onExit?.(); return }
+    const release = async () => {
+      try { await releaseTile(tile.id) } catch { /* best-effort — leaving regardless */ }
+      onExit?.()
+    }
+    const hasDrawn = Object.values(histById).some((h) => h.canUndo)
+    if (!hasDrawn) { void release(); return }
+    Alert.alert(
+      'Discard tile?',
+      "Your drawing won't be saved, and the tile will be freed for others.",
+      [
+        { text: 'Keep drawing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => void release() },
+      ],
+    )
+  }
+
   return (
     <View style={styles.fill}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => onExit?.()} hitSlop={8} disabled={submitting}><Text style={styles.topBack}>‹ Tiles</Text></Pressable>
+        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting}><Text style={styles.topBack}>‹ Tiles</Text></Pressable>
         <Text style={styles.topTitle}>{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
         {canSubmit ? (
           <Pressable onPress={submit} disabled={submitting} style={[styles.submit, submitting && styles.submitOff]} hitSlop={8}>
