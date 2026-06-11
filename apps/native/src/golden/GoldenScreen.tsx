@@ -9,6 +9,11 @@ import { CASES, runCase, SIZE, type GoldenResult } from './runGolden'
  * Reachable via a long-press on the discovery title — not part of the product UI.
  */
 const DET_PASS = 3.0 // meanAbs/255 tolerance for deterministic tools (web Skia got ~0.24 avg, 1.5 worst)
+// NOTE: watercolor-dwell-pool reads ~0.253 meanAbs (inkRatio 0 — the pooled pigment sits right at the
+// 24/255 ink threshold). That is NOT a native bug: web-Skia/CanvasKit gives the IDENTICAL 0.253 vs the
+// Canvas2D baseline (see docs/baseline/PARITY-SKIA.json) — an inherent Skia-vs-Canvas2D delta from 70×
+// dwell-pool accumulation. Native actually beats web-Skia on the readback tools (eraser/smudge). Don't
+// "fix" it: matching the baseline more here would diverge native from web-Skia, the real parity target.
 
 export function GoldenScreen({ onBack }: { onBack: () => void }) {
   const [results, setResults] = useState<GoldenResult[]>([])
