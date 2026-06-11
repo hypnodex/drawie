@@ -13,7 +13,15 @@ import { TOOL_IDS } from '../tools'
 // Mirrors the web mock lists (apps/web/src/mock) — kept local so native doesn't depend on the web app.
 const CATEGORIES = ['Landscape', 'Portrait', 'Abstract', 'Character', 'Surreal', 'Sci-Fi', 'Botanical', 'Architecture', 'Animal', 'Mythical']
 const STYLES = ['Watercolor', 'Pixel art', 'Line art', 'Geometric', 'Pastel', 'Sketch', 'Painterly', 'Abstract', 'Minimalist', 'Cinematic']
-const GRID_PRESETS = [{ label: '3 × 3', rows: 3, cols: 3 }, { label: '5 × 5', rows: 5, cols: 5 }, { label: '8 × 8', rows: 8, cols: 8 }]
+// Shapes cover the aspect ratios (square / portrait / landscape) — the founder picks one; it sets
+// gridRows × gridCols, which the mosaic and tile grid render at that aspect.
+const GRID_PRESETS = [
+  { label: 'Square S', rows: 3, cols: 3 },
+  { label: 'Square', rows: 5, cols: 5 },
+  { label: 'Square L', rows: 8, cols: 8 },
+  { label: 'Portrait', rows: 8, cols: 5 },
+  { label: 'Landscape', rows: 5, cols: 8 },
+]
 
 /**
  * Create-canvas wizard (MVP) — a focused single-scroll form (not the web's 4-step flow). Lets an
@@ -147,14 +155,13 @@ export function CreateCanvasScreen({
             <TextInput value={styleGuidance} onChangeText={setStyleGuidance} placeholder="e.g. Soft pastels, no hard outlines." maxLength={160} multiline style={[styles.input, styles.multiline]} placeholderTextColor="#bbb" />
           </Field>
 
-          <Field label="Grid size">
-            <View style={styles.row}>
+          <Field label="Shape & size" hint={`${grid.rows} × ${grid.cols} · ${grid.rows * grid.cols} tiles`}>
+            <View style={styles.chipsWrap}>
               {GRID_PRESETS.map((g) => (
                 <Pressable key={g.label} onPress={() => setGrid(g)} style={[styles.chip, grid.label === g.label && styles.chipOn]}>
                   <Text style={[styles.chipText, grid.label === g.label && styles.chipTextOn]}>{g.label}</Text>
                 </Pressable>
               ))}
-              <Text style={styles.gridMeta}>{grid.rows * grid.cols} tiles</Text>
             </View>
           </Field>
 

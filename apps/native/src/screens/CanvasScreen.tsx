@@ -93,7 +93,11 @@ export function CanvasScreen({
             <View style={styles.revealWrap}>
               <Text style={styles.revealTitle}>✨ Mosaic complete</Text>
               {canvas?.artworkUrl ? (
-                <Image source={{ uri: canvas.artworkUrl }} style={styles.reveal} resizeMode="cover" />
+                <Image
+                  source={{ uri: canvas.artworkUrl }}
+                  style={[styles.reveal, { aspectRatio: (canvas?.gridCols ?? 1) / (canvas?.gridRows ?? 1) }]}
+                  resizeMode="cover"
+                />
               ) : (
                 // The last tile flipped the canvas to completed; composite-mosaic runs async, so
                 // artwork_url lands a moment later — the canvas subscription reloads us when it does.
