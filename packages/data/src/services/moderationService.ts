@@ -1,5 +1,5 @@
 import type { NSFWJS } from 'nsfwjs'
-import { supabase } from '../supabase'
+import { supabase, dataDebug } from '../supabase'
 
 /**
  * Content moderation service.
@@ -231,7 +231,7 @@ async function classifyImageNSFW(canvas: HTMLCanvasElement): Promise<ModerationF
   const sexy = p.sexy ?? 0
   const explicit = porn + hentai
 
-  if (import.meta.env.DEV) console.debug('[moderation] nsfw scores:', p)
+  if (dataDebug) console.debug('[moderation] nsfw scores:', p)
 
   if (
     porn >= NSFW_SINGLE_THRESHOLD ||
@@ -307,7 +307,7 @@ async function ocrImageText(canvas: HTMLCanvasElement): Promise<string> {
     const worker = await getOcrWorker()
     const { data } = await worker.recognize(binarizeForOcr(canvas))
     const text = data.text ?? ''
-    if (import.meta.env.DEV) console.debug('[moderation] OCR text:', JSON.stringify(text))
+    if (dataDebug) console.debug('[moderation] OCR text:', JSON.stringify(text))
     return text
   } catch (err) {
     console.warn('[moderation] OCR unavailable:', err)
@@ -368,7 +368,7 @@ async function moderateWithEdge(input: ModerationInput): Promise<ModerationFindi
   const verdict = data as { flagged?: boolean; categories?: string[]; reason?: string; unavailable?: boolean } | null
   if (!verdict || verdict.unavailable) throw new Error('moderation unavailable')
 
-  if (import.meta.env.DEV) console.debug('[moderation] edge verdict:', verdict)
+  if (dataDebug) console.debug('[moderation] edge verdict:', verdict)
   if (!verdict.flagged) return []
 
   const source: ModerationSource = input.image ? 'image' : 'text'
