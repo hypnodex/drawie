@@ -7,7 +7,7 @@ import { listCanvases, supabase, type Canvas } from '@drawie/data'
  * Tapping a canvas opens its tile grid. Minimal cards for now (title + progress); the
  * gradient/mosaic thumbnails come later.
  */
-export function DiscoveryScreen({ onOpen, onCreate }: { onOpen: (canvasId: string) => void; onCreate: () => void }) {
+export function DiscoveryScreen({ onOpen, onCreate, onDevTools }: { onOpen: (canvasId: string) => void; onCreate: () => void; onDevTools?: () => void }) {
   const [canvases, setCanvases] = useState<Canvas[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -27,7 +27,7 @@ export function DiscoveryScreen({ onOpen, onCreate }: { onOpen: (canvasId: strin
   return (
     <View style={styles.fill}>
       <View style={styles.header}>
-        <Text style={styles.title}>Canvases</Text>
+        <Pressable onLongPress={onDevTools} delayLongPress={600}><Text style={styles.title}>Canvases</Text></Pressable>
         <View style={styles.headerActions}>
           <Pressable onPress={onCreate} hitSlop={8} style={styles.newBtn}><Text style={styles.newBtnText}>+ New</Text></Pressable>
           <Pressable onPress={() => supabase.auth.signOut()} hitSlop={8}><Text style={styles.signOut}>Sign out</Text></Pressable>

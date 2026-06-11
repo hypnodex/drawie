@@ -10,6 +10,7 @@ import { LoginScreen } from './src/auth/LoginScreen'
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen'
 import { CanvasScreen } from './src/screens/CanvasScreen'
 import { CreateCanvasScreen } from './src/screens/CreateCanvasScreen'
+import { GoldenScreen } from './src/golden/GoldenScreen'
 
 /**
  * Phase 5 native entry. Auth-gates the product, then a minimal state-based router for the
@@ -19,6 +20,7 @@ import { CreateCanvasScreen } from './src/screens/CreateCanvasScreen'
 type Route =
   | { name: 'discovery' }
   | { name: 'create' }
+  | { name: 'golden' }
   | { name: 'canvas'; canvasId: string }
   | { name: 'editor'; canvasId: string; tile: Tile }
 
@@ -45,6 +47,7 @@ export default function App() {
       <DiscoveryScreen
         onOpen={(canvasId) => setRoute({ name: 'canvas', canvasId })}
         onCreate={() => setRoute({ name: 'create' })}
+        onDevTools={() => setRoute({ name: 'golden' })}
       />
     )
   } else if (route.name === 'create') {
@@ -54,6 +57,8 @@ export default function App() {
         onCreated={(canvasId) => setRoute({ name: 'canvas', canvasId })}
       />
     )
+  } else if (route.name === 'golden') {
+    content = <GoldenScreen onBack={() => setRoute({ name: 'discovery' })} />
   } else if (route.name === 'canvas') {
     content = (
       <CanvasScreen

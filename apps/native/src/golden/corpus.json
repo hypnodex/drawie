@@ -1,0 +1,77 @@
+{
+  "_about": "Deterministic input corpus for the migration parity baseline. Each case pins the exact pointer path, pressure profile, and tool-setting overrides so the same stroke can be replayed through the current Canvas-2D engine, the future Canvas2DBackend (Phase 2), web Skia (Phase 4), and native Skia (Phase 6). See README.md for the stochastic-tool caveat (pencil/spray/drybrush/inkbrush/textures use unseeded Math.random today).",
+  "_status": "Inputs authored in Phase 0. Rendered captures (captures/*.png) are pending a run — see README.md.",
+  "schemaVersion": 1,
+  "canvas": {
+    "internalSize": 2000,
+    "background": "#ffffff",
+    "note": "Coordinates are in the engine's internal 2000x2000 space (Canvas.tsx INTERNAL_SIZE). Origin top-left."
+  },
+  "generator": {
+    "note": "How to expand (path, pressureProfile) into the InputPoint[] the engine consumes (see engine.ts InputPoint: {x,y,pressure,hasPressure,t}).",
+    "sampleDtMs": 8,
+    "rule": "For i in [0..N): f = i/(N-1); (x,y) = path(f); pressure = pressureProfile(f); hasPressure = (pressureProfile != 'none'); t = i * sampleDtMs. Feed sample 0 to engine.begin(), the rest to engine.extend(), then engine.end().",
+    "dwellRule": "For paths of type 'dwell', after the moving segment, emit `holdSamples` additional samples at the final point with t continuing to increment by sampleDtMs (≈ pointer held still). This exercises StrokeEngine.tick() pooling (watercolor)."
+  },
+  "pressureProfiles": {
+    "low":  { "type": "const", "value": 0.25 },
+    "med":  { "type": "const", "value": 0.5 },
+    "high": { "type": "const", "value": 0.9 },
+    "ramp": { "type": "linear", "from": 0.1, "to": 1.0 },
+    "none": { "type": "none", "note": "hasPressure=false → engine simulates pressure from stroke speed (derivePressure)." }
+  },
+  "paths": {
+    "h-swipe":       { "type": "line", "from": [400, 1000], "to": [1600, 1000], "samples": 80 },
+    "diag":          { "type": "line", "from": [500, 500],  "to": [1500, 1500], "samples": 80 },
+    "s-curve":       { "type": "sine", "xFrom": 400, "xTo": 1600, "yMid": 1000, "amplitude": 300, "cycles": 1, "samples": 120 },
+    "short-swipe":   { "type": "line", "from": [800, 1000], "to": [1200, 1000], "samples": 30 },
+    "dwell":         { "type": "dwell", "from": [900, 1000], "to": [1000, 1000], "moveSamples": 20, "holdSamples": 70 },
+    "cross-1":       { "type": "line", "from": [600, 700],  "to": [1400, 1300], "samples": 70 },
+    "cross-2":       { "type": "line", "from": [600, 1300], "to": [1400, 700],  "samples": 70 },
+    "block-fill":       { "type": "line", "from": [300, 1000], "to": [1700, 1000], "samples": 90 },
+    "block-fill-left":  { "type": "line", "from": [300, 1000], "to": [1000, 1000], "samples": 45 },
+    "block-fill-right": { "type": "line", "from": [1000, 1000], "to": [1700, 1000], "samples": 45 }
+  },
+  "setups": {
+    "_note": "Setup strokes are drawn first on the same layer to create the pixels that read-back tools (eraser/smudge/waterdrop) and wet-on-wet (brush blending) operate on. Use a hard, opaque brush.",
+    "block-blue":        { "tool": "brush", "path": "block-fill",       "pressure": "high", "settings": { "color": "#7c8cff", "size": 120, "opacity": 1, "hardness": 1, "buildUp": false } },
+    "block-coral":       { "tool": "brush", "path": "block-fill",       "pressure": "high", "settings": { "color": "#ef476f", "size": 120, "opacity": 1, "hardness": 1, "buildUp": false } },
+    "block-coral-left":  { "tool": "brush", "path": "block-fill-left",  "pressure": "high", "settings": { "color": "#ef476f", "size": 120, "opacity": 1, "hardness": 1, "buildUp": false } },
+    "block-blue-right":  { "tool": "brush", "path": "block-fill-right", "pressure": "high", "settings": { "color": "#7c8cff", "size": 120, "opacity": 1, "hardness": 1, "buildUp": false } },
+    "block-multicolor":  { "tool": "brush", "path": "cross-1",          "pressure": "high", "settings": { "color": "#118ab2", "size": 90,  "opacity": 1, "hardness": 1, "buildUp": false }, "then": { "tool": "brush", "path": "cross-2", "pressure": "high", "settings": { "color": "#ffd166", "size": 90, "opacity": 1, "hardness": 1, "buildUp": false } } }
+  },
+  "cases": [
+    { "id": "brush-default-scurve-ramp",     "tool": "brush",      "path": "s-curve",     "pressure": "ramp", "deterministic": true,  "settings": {},                              "notes": "Soft round, pressure-driven width via brushDiameter; texture none → reproducible." },
+    { "id": "brush-blending-over-coral",      "tool": "brush",      "path": "h-swipe",     "pressure": "med",  "deterministic": true,  "setup": ["block-coral"], "settings": { "blending": 0.6 }, "notes": "Wet-on-wet: periwinkle brush over coral block; resolveStamp pulls dest color in (needs readback)." },
+    { "id": "brush-buildup-overstroke",       "tool": "brush",      "path": "h-swipe",     "pressure": "high", "deterministic": true,  "repeat": 6,  "settings": { "buildUp": true },     "notes": "Repeat the same stroke 6× on one layer; cumulative darkening per resolveStamp build-up branch." },
+    { "id": "brush-texture-canvas-hswipe",    "tool": "brush",      "path": "h-swipe",     "pressure": "med",  "deterministic": false, "settings": { "texture": "canvas" }, "notes": "STOCHASTIC (texture uses Math.random). Perceptual reference until seeded in Phase 2." },
+    { "id": "brush-wet-hswipe-high",          "tool": "brush",      "path": "h-swipe",     "pressure": "high", "deterministic": true,  "settings": { "wetPaint": true },    "notes": "Wider radius (×1.25), lower base alpha — softer bleeding edge." },
+
+    { "id": "pen-hswipe-med",                 "tool": "pen",        "path": "h-swipe",     "pressure": "med",  "deterministic": true,  "settings": {}, "notes": "Crisp segment-joined line; clean reproducible target." },
+    { "id": "pen-scurve-ramp",                "tool": "pen",        "path": "s-curve",     "pressure": "ramp", "deterministic": true,  "settings": {}, "notes": "Width tapers with pressure ramp." },
+
+    { "id": "pencil-hswipe-low",              "tool": "pencil",     "path": "h-swipe",     "pressure": "low",  "deterministic": false, "settings": {}, "notes": "STOCHASTIC (4 jittered micro-dots/stamp via Math.random). Perceptual: grain density/alpha." },
+    { "id": "pencil-hswipe-med",              "tool": "pencil",     "path": "h-swipe",     "pressure": "med",  "deterministic": false, "settings": {}, "notes": "STOCHASTIC." },
+    { "id": "pencil-hswipe-high",             "tool": "pencil",     "path": "h-swipe",     "pressure": "high", "deterministic": false, "settings": {}, "notes": "STOCHASTIC." },
+
+    { "id": "marker-hswipe-med",              "tool": "marker",     "path": "h-swipe",     "pressure": "med",  "deterministic": true,  "settings": {}, "notes": "Multiply composite, pressureSim off by default." },
+    { "id": "marker-overlap-cross",           "tool": "marker",     "path": "cross-1",     "pressure": "med",  "deterministic": true,  "then": { "tool": "marker", "path": "cross-2", "pressure": "med", "settings": {} }, "settings": {}, "notes": "Two crossing strokes; intersection darkens (multiply). Verifies blend-mode parity." },
+
+    { "id": "watercolor-scurve-med",          "tool": "watercolor", "path": "s-curve",     "pressure": "med",  "deterministic": true,  "settings": {}, "notes": "Wet low-alpha wide stamp; blending+dilution+buildUp on by default." },
+    { "id": "watercolor-dwell-pool",          "tool": "watercolor", "path": "dwell",       "pressure": "med",  "deterministic": true,  "settings": {}, "notes": "Hold at end → StrokeEngine.tick() grows a pool (timing-dependent; replay must drive tick at the corpus dt)." },
+
+    { "id": "drybrush-dryness-low-diag",      "tool": "drybrush",   "path": "diag",        "pressure": "high", "deterministic": false, "settings": { "strength": 0.2 }, "notes": "STOCHASTIC (bristle seeds via Math.random). Lower dryness → denser coverage." },
+    { "id": "drybrush-dryness-high-diag",     "tool": "drybrush",   "path": "diag",        "pressure": "high", "deterministic": false, "settings": { "strength": 0.9 }, "notes": "STOCHASTIC. Higher dryness → sparser, scratchier streaks." },
+    { "id": "inkbrush-default-scurve-high",   "tool": "inkbrush",   "path": "s-curve",     "pressure": "high", "deterministic": false, "settings": {}, "notes": "STOCHASTIC. Heavy dry-bristle ink; dense body, ragged edges." },
+
+    { "id": "spray-density-low-hswipe",       "tool": "spray",      "path": "h-swipe",     "pressure": "med",  "deterministic": false, "settings": { "strength": 0.2 }, "notes": "STOCHASTIC. density=strength → fewer particles." },
+    { "id": "spray-density-high-hswipe",      "tool": "spray",      "path": "h-swipe",     "pressure": "med",  "deterministic": false, "settings": { "strength": 0.9 }, "notes": "STOCHASTIC. denser particle scatter." },
+
+    { "id": "eraser-soft-over-fill",          "tool": "eraser",     "path": "short-swipe", "pressure": "none", "deterministic": true,  "setup": ["block-blue"], "settings": {}, "notes": "destination-out soft erase through a solid blue band; softness=0.4 edge." },
+
+    { "id": "smudge-across-boundary",         "tool": "smudge",     "path": "h-swipe",     "pressure": "none", "deterministic": true,  "setup": ["block-coral-left", "block-blue-right"], "settings": {}, "notes": "Smear across the coral|blue boundary; pixel pickup+re-lay (readback). Geometry reproducible; exact pixels depend on engine order." },
+
+    { "id": "waterdrop-water-only-over-fill", "tool": "waterdrop",  "path": "dwell",       "pressure": "none", "deterministic": true,  "setup": ["block-multicolor"], "settings": { "color": "transparent", "strength": 0.6 }, "notes": "Water-only displacement over multicolor paint; noise-perturbed boundary + turbulence + blur. THE hard tool (becomes SkSL in Phase 4)." },
+    { "id": "waterdrop-ink-over-fill",        "tool": "waterdrop",  "path": "dwell",       "pressure": "none", "deterministic": true,  "setup": ["block-multicolor"], "settings": { "color": "#74c2f0", "strength": 0.6 }, "notes": "Same as above plus radial ink tint." }
+  ]
+}
