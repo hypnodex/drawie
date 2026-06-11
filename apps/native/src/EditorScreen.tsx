@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native'
+import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import { Skia, type SkImage } from '@shopify/react-native-skia'
 import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import type { Tile } from '@drawie/data'
+import { uploadTileArtwork, completeTileAndMaybeReveal, type Tile } from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
 import { ColorPalette } from './ui/ColorPalette'
 import { TexturePicker } from './ui/TexturePicker'
 import { LayersPanel, type LayerMeta } from './ui/LayersPanel'
+
+const ARTBOARD = 2000 // must match DrawCanvas — the per-layer surface size we composite
 
 /**
  * Editor shell (STEP 4) — wraps DrawCanvas with editable per-tool settings (colour/size/
@@ -19,12 +22,14 @@ import { LayersPanel, type LayerMeta } from './ui/LayersPanel'
  * non-active wrappers are pointerEvents="none", so touches fall through to the active one).
  * Undo/redo/clear route to the active layer's ref; history is tracked per layer.
  */
-export function EditorScreen({ tile, onExit }: { canvasId?: string; tile?: Tile; onExit?: () => void }) {
+export function EditorScreen({ canvasId, tile, onExit }: { canvasId?: string; tile?: Tile; onExit?: () => void }) {
   const [tool, setTool] = useState<ToolId>('brush')
   const [settingsMap, setSettingsMap] = useState<ToolSettingsMap>(DEFAULT_SETTINGS)
   const [layers, setLayers] = useState<LayerMeta[]>([{ id: 1, visible: true, opacity: 1 }])
   const [activeId, setActiveId] = useState(1)
   const [histById, setHistById] = useState<Record<number, { canUndo: boolean; canRedo: boolean }>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const nextId = useRef(2)
   const layerRefs = useRef(new Map<number, DrawCanvasHandle>())
 
@@ -51,13 +56,67 @@ export function EditorScreen({ tile, onExit }: { canvasId?: string; tile?: Tile;
   const setLayerOpacity = (v: number) =>
     setLayers((ls) => ls.map((L) => (L.id === activeId ? { ...L, opacity: v } : L)))
 
+  // Submit the tile artwork. Composite the VISIBLE layers (array order = z-order, bottom→top)
+  // at their per-layer opacity into one transparent PNG — WYSIWYG with what's on screen, and
+  // transparent-where-unpainted like the web composite (getCompositeCanvas) — then upload it to
+  // the `tiles` bucket and complete_tile (which fires the mosaic reveal on the final tile).
+  // Mirrors web CanvasDrawScreen.onSubmit. On success we exit back to the tile grid.
+  // FOLLOW-UP: web runs client-side moderation before submit; native moderation (the server-side
+  // `moderate` edge function) is a separate increment.
+  const submit = async () => {
+    if (!canvasId || !tile || submitting) return
+    setSubmitError(null)
+    setSubmitting(true)
+    const snaps: SkImage[] = []
+    try {
+      const surface = Skia.Surface.Make(ARTBOARD, ARTBOARD)
+      if (!surface) throw new Error('Could not allocate a canvas surface.')
+      const sc = surface.getCanvas()
+      sc.clear(Skia.Color('rgba(0,0,0,0)')) // fresh surfaces aren't guaranteed blank (see RNSkiaBackend.createSurface)
+      const paint = Skia.Paint()
+      for (const L of layers) {
+        if (!L.visible) continue
+        const img = ref(L.id)?.snapshot()
+        if (!img) continue
+        snaps.push(img)
+        paint.setAlphaf(L.opacity)
+        sc.drawImage(img, 0, 0, paint)
+      }
+      surface.flush?.()
+      const composite = surface.makeImageSnapshot()
+      const bytes = composite.encodeToBytes() // PNG
+      composite.dispose()
+      surface.dispose?.()
+      // RN supabase-storage uploads an ArrayBuffer reliably (Blob/FormData are flaky on RN).
+      // encodeToBytes returns a plain ArrayBuffer-backed array; the cast just drops the
+      // SharedArrayBuffer arm of ArrayBufferLike that .slice() widens to.
+      const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+      const path = await uploadTileArtwork(canvasId, tile.id, body)
+      await completeTileAndMaybeReveal(canvasId, tile.id, path)
+      onExit?.() // back to the grid; it reloads on mount and shows this tile completed
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : String(e))
+      setSubmitting(false)
+    } finally {
+      snaps.forEach((sn) => sn.dispose())
+    }
+  }
+  const canSubmit = !!canvasId && !!tile
+
   return (
     <View style={styles.fill}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => onExit?.()} hitSlop={8}><Text style={styles.topBack}>‹ Tiles</Text></Pressable>
+        <Pressable onPress={() => onExit?.()} hitSlop={8} disabled={submitting}><Text style={styles.topBack}>‹ Tiles</Text></Pressable>
         <Text style={styles.topTitle}>{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
-        <View style={{ width: 60 }} />
+        {canSubmit ? (
+          <Pressable onPress={submit} disabled={submitting} style={[styles.submit, submitting && styles.submitOff]} hitSlop={8}>
+            {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitText}>Submit</Text>}
+          </Pressable>
+        ) : (
+          <View style={{ width: 60 }} />
+        )}
       </View>
+      {!!submitError && <Text style={styles.submitError} numberOfLines={2}>{submitError}</Text>}
       <View style={styles.canvasWrap}>
         {layers.map((L, i) => (
           <View
@@ -115,6 +174,10 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
   topBack: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 60 },
   topTitle: { fontSize: 14, color: '#555', fontWeight: '600' },
+  submit: { minWidth: 60, height: 32, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 16, backgroundColor: '#7c8cff' },
+  submitOff: { opacity: 0.5 },
+  submitText: { fontSize: 13, color: '#fff', fontWeight: '700' },
+  submitError: { color: '#ef476f', fontSize: 12, textAlign: 'center', paddingHorizontal: 12, paddingVertical: 4 },
   canvasWrap: { flex: 1, backgroundColor: '#fff' },
   panel: {
     paddingTop: 8, paddingBottom: 28, paddingHorizontal: 12, gap: 6,

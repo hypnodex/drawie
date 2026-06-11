@@ -30,7 +30,12 @@ import { RNSkiaBackend } from './render/RNSkiaBackend'
 const ARTBOARD = 2000
 const MAX_UNDO = 10 // pixel-checkpoint undo depth (≈16MB each at 2000²)
 
-export type DrawCanvasHandle = { undo: () => void; redo: () => void; clear: () => void }
+export type DrawCanvasHandle = {
+  undo: () => void; redo: () => void; clear: () => void
+  /** Snapshot the layer's current pixels (for save/submit compositing). Caller disposes the
+   *  returned image. null if the canvas has been unmounted/disposed. */
+  snapshot: () => SkImage | null
+}
 
 type DrawCanvasProps = {
   tool: ToolId
@@ -229,7 +234,14 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     notifyHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, scheduleDisplay])
-  useImperativeHandle(ref, () => ({ undo: doUndo, redo: doRedo, clear: doClear }), [doUndo, doRedo, doClear])
+  // Save/submit reads the committed pixels. flush() first so any pending engine draws are on
+  // the surface, then snapshot. Returns null after unmount (surface disposed). Caller disposes.
+  const doSnapshot = useCallback((): SkImage | null => {
+    if (!alive.current) return null
+    backend.flush()
+    return backend.surface.makeImageSnapshot()
+  }, [backend])
+  useImperativeHandle(ref, () => ({ undo: doUndo, redo: doRedo, clear: doClear, snapshot: doSnapshot }), [doUndo, doRedo, doClear, doSnapshot])
 
   // ── gesture (UI-thread worklets; one runOnJS per event) ─────────────────────
   const press = (e: { stylusData?: { pressure: number; tiltX: number; tiltY: number } }) => {

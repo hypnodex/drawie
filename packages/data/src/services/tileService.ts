@@ -89,11 +89,18 @@ export async function completeTileAndMaybeReveal(
   return tile
 }
 
-/** Upload the composited tile PNG to the private `tiles` bucket; returns its path. */
-export async function uploadTileArtwork(canvasId: CanvasId, tileId: TileId, blob: Blob): Promise<string> {
+/**
+ * Upload the composited tile PNG to the private `tiles` bucket; returns its path.
+ * Accepts a `Blob` (web `canvas.toBlob`) or raw bytes (`ArrayBuffer`/`Uint8Array` —
+ * native encodes its Skia surface to PNG bytes; RN supabase-storage uploads an
+ * ArrayBuffer reliably where a Blob is flaky). Storage accepts all of these.
+ */
+export async function uploadTileArtwork(
+  canvasId: CanvasId, tileId: TileId, body: Blob | ArrayBuffer | Uint8Array,
+): Promise<string> {
   const path = `${canvasId}/${tileId}.png`
   const { error } = await supabase.storage.from('tiles')
-    .upload(path, blob, { upsert: true, contentType: 'image/png' })
+    .upload(path, body, { upsert: true, contentType: 'image/png' })
   if (error) throw error
   return path
 }
