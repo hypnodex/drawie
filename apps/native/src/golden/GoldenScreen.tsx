@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
-import { CASES, runCase, type GoldenResult } from './runGolden'
+import { CASES, runCase, SIZE, type GoldenResult } from './runGolden'
 
 /**
  * Phase 6 golden DEV screen — runs the corpus through RNSkiaBackend on-device and diffs each case
@@ -21,13 +21,21 @@ export function GoldenScreen({ onBack }: { onBack: () => void }) {
     runningRef.current = true
     setRunning(true); setResults([]); setDone(0)
     const acc: GoldenResult[] = []
+    console.log(`[golden] running ${CASES.length} cases (RN-Skia vs Canvas2D baseline, ${SIZE}²)…`)
     for (const c of CASES) {
       const r = await runCase(c)
       acc.push(r)
+      // Stream each verdict to Metro so it can be read off-device. `tag` mirrors the on-screen chip.
+      const tag = r.error ? 'ERR ' : r.stochastic ? 'stoch' : r.meanAbs <= DET_PASS ? 'PASS ' : 'FAIL '
+      console.log(`[golden] ${tag} ${r.id} meanAbs=${r.meanAbs.toFixed(3)} maxAbs=${r.maxAbs} pctDiff=${r.pctDiff.toFixed(3)} ink=${r.inkA.toFixed(4)}/${r.inkB.toFixed(4)}${r.error ? ' :: ' + r.error : ''}`)
       setResults([...acc]); setDone(acc.length)
       // yield a frame so the table + progress repaint and the JS thread isn't pinned
       await new Promise<void>((res) => requestAnimationFrame(() => res()))
     }
+    const detR = acc.filter((r) => !r.stochastic && !r.error)
+    const worst = detR.reduce<GoldenResult | null>((m, r) => (!m || r.meanAbs > m.meanAbs ? r : m), null)
+    console.log(`[golden] DONE det ${detR.filter((r) => r.meanAbs <= DET_PASS).length}/${detR.length} ≤${DET_PASS} · stoch ${acc.filter((r) => r.stochastic).length} · err ${acc.filter((r) => r.error).length}` +
+      (worst ? ` · worst-det ${worst.id}=${worst.meanAbs.toFixed(3)}` : ''))
     setRunning(false)
     runningRef.current = false
   }
