@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Spinner } from '@heroui/react'
 import DrawingScreen from './DrawingScreen'
 import { getCanvas } from '@drawie/data'
-import { getTilesForCanvas, claimTile, completeTileAndMaybeReveal, uploadTileArtwork } from '@drawie/data'
+import { getTilesForCanvas, claimTile, completeTileAndMaybeReveal, uploadTileArtwork, releaseTile } from '@drawie/data'
 import { useAsync } from '../hooks/useAsync'
 import { useAuth } from '../state/AuthContext'
 import type { Canvas, Tile } from '@drawie/data'
@@ -58,6 +58,7 @@ export default function CanvasDrawScreen() {
       tile={tile}
       tiles={data.tiles}
       sessionKey={sessionKey}
+      userId={user.id}
       onSubmit={async (image) => {
         let path: string | undefined
         if (image) {
@@ -67,7 +68,14 @@ export default function CanvasDrawScreen() {
         recordTileSubmission(canvas.id)
         nav(`/canvas/${canvas.id}`, { replace: true })
       }}
-      onLeave={() => nav(`/canvas/${canvas.id}`)}
+      onLeave={async (action) => {
+        // Discarding releases the claimed tile back to empty (grey) so it isn't left stuck
+        // in-progress and others can claim it. Saving keeps the draft (tile stays in-progress).
+        if (action === 'discard') {
+          try { await releaseTile(tile.id) } catch { /* best-effort — leaving regardless */ }
+        }
+        nav(`/canvas/${canvas.id}`)
+      }}
     />
   )
 }

@@ -6,7 +6,7 @@ import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useSharedValue, runOnJS } from 'react-native-reanimated'
 import {
-  StrokeEngine, DEFAULT_ASSIST, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings,
+  StrokeEngine, DEFAULT_ASSIST, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings, type AssistSettings,
 } from '@drawie/core'
 import { RNSkiaBackend } from './render/RNSkiaBackend'
 
@@ -46,11 +46,20 @@ type DrawCanvasProps = {
   /** When false the pen gesture is disabled — used for stacked layers so only the active
    *  layer receives input (others are display-only). Defaults to true. */
   active?: boolean
+  /** Live broadcast hooks — fired as the local user draws so neighbors can see the stroke live.
+   *  Only the active layer fires them (the gesture is disabled on inactive layers). */
+  onLiveStart?: (stroke: { toolId: ToolId; settings: ToolSettings; assist: AssistSettings; seed: number; first: StrokeSample }) => void
+  onLiveAppend?: (samples: StrokeSample[]) => void
+  onLiveEnd?: (ticks?: number[]) => void
 }
 
 export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function DrawCanvas(
-  { tool, settings, onHistory, active = true }, ref,
+  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd }, ref,
 ) {
+  // Read the latest live callbacks without re-subscribing the gesture handlers.
+  const liveStartRef = useRef(onLiveStart); liveStartRef.current = onLiveStart
+  const liveAppendRef = useRef(onLiveAppend); liveAppendRef.current = onLiveAppend
+  const liveEndRef = useRef(onLiveEnd); liveEndRef.current = onLiveEnd
   const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true), [])
   const strokes = useRef<ModelStroke[]>([])
   // Undo/redo as pixel checkpoints for INSTANT restore — model-replay was O(strokes) and felt
@@ -160,6 +169,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     samples.current = [{ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 }]
     ticks.current = []
     eng.current.begin({ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 })
+    liveStartRef.current?.({ toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current, first: samples.current[0] })
     if (tool === 'watercolor') { stopTick(); tickRaf.current = requestAnimationFrame(tickLoop) }
     scheduleDisplay()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,7 +181,9 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     const { x, y } = toArtboard(vx, vy)
     const t = Date.now() - startT.current
     e.extend({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
-    samples.current.push({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
+    const sample: StrokeSample = { x, y, pressure, hasPressure: has, tiltX, tiltY, t }
+    samples.current.push(sample)
+    liveAppendRef.current?.([sample])
     scheduleDisplay()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleDisplay])
@@ -181,6 +193,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     if (!e) return
     stopTick()
     e.end()
+    liveEndRef.current?.(tool === 'watercolor' ? ticks.current : undefined)
     if (samples.current.length > 0) {
       strokes.current.push({
         toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current,

@@ -5,6 +5,7 @@ import { BottomToolbar } from '../components/editor/BottomToolbar'
 import { ToolSettingsPanel } from '../components/editor/ToolSettings'
 import { LayersPanel } from '../components/editor/Layers'
 import { MosaicReveal } from '../components/editor/MosaicReveal'
+import { SimNeighborsPanel } from '../components/editor/SimNeighborsPanel'
 import { SaveIcon, SendIcon, CheckCircleIcon } from '../components/icons'
 import { DEFAULT_ASSIST, DEFAULT_SETTINGS, Layer, ToolId, ToolSettingsMap } from '@drawie/core'
 import type { Canvas as CanvasDomain, Tile } from '@drawie/data'
@@ -14,7 +15,7 @@ import {
 } from '../session'
 import { Eyebrow } from '../components/ui/Eyebrow'
 import { useContentModeration } from '../hooks/useContentModeration'
-import { prewarmModeration } from '@drawie/data'
+import { prewarmModeration, tileArtworkUrl, NEIGHBOR_OFFSETS } from '@drawie/data'
 import { ModerationBlockedDialog } from '../components/moderation/ModerationBlockedDialog'
 
 // Temporarily paused: the artboard-coverage gate before submitting is disabled
@@ -49,13 +50,15 @@ interface Props {
   tile?: Tile
   tiles?: Tile[]
   sessionKey?: string
+  /** Current user id — stamps outgoing live strokes + lets the live-neighbor layer self-suppress. */
+  userId?: string
   /** Receives the composited artboard PNG so the caller can persist it. */
   onSubmit?: (image?: Blob) => void | Promise<void>
   onLeave?: (action: 'save' | 'discard') => void
 }
 
 export default function DrawingScreen({
-  canvas, tile, tiles, sessionKey: sessionKeyProp, onSubmit: onSubmitProp, onLeave: onLeaveProp,
+  canvas, tile, tiles, sessionKey: sessionKeyProp, userId, onSubmit: onSubmitProp, onLeave: onLeaveProp,
 }: Props = {}) {
   const sessionKey = sessionKeyProp ?? DEFAULT_SESSION_KEY
   const allowedTools = canvas && canvas.allowedTools.length > 0 ? canvas.allowedTools : undefined
@@ -83,6 +86,27 @@ export default function DrawingScreen({
   const canvasRef = useRef<CanvasHandle>(null)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+
+  // Real adjacent-tile artwork for the neighbor slivers (signed URLs, keyed by NEIGHBOR_OFFSETS cell
+  // index). Empty/in-progress neighbors stay blank; the sandbox (no tiles) keeps the placeholders.
+  const [neighborArt, setNeighborArt] = useState<Record<number, string>>({})
+  useEffect(() => {
+    if (!canvas || !tile || !tiles?.length) { setNeighborArt({}); return }
+    let cancelled = false
+    const byPos = new Map(tiles.map((t) => [`${t.row}:${t.col}`, t]))
+    void Promise.all(NEIGHBOR_OFFSETS.map(async (o, cell) => {
+      const nr = tile.row + o.row, nc = tile.col + o.col
+      if (nr < 0 || nc < 0 || nr >= canvas.gridRows || nc >= canvas.gridCols) return null
+      const nt = byPos.get(`${nr}:${nc}`)
+      if (!nt?.artworkPath) return null
+      const uri = await tileArtworkUrl(nt.artworkPath)
+      return uri ? ([cell, uri] as const) : null
+    })).then((pairs) => {
+      if (cancelled) return
+      setNeighborArt(Object.fromEntries(pairs.filter(Boolean) as Array<readonly [number, string]>))
+    })
+    return () => { cancelled = true }
+  }, [canvas, tile, tiles])
 
   // Restore saved session on first mount
   useEffect(() => {
@@ -368,8 +392,15 @@ export default function DrawingScreen({
           tileCol={tile?.col}
           gridRows={canvas?.gridRows}
           gridCols={canvas?.gridCols}
+          canvasId={canvas?.id}
+          userId={userId}
+          neighborArt={neighborArt}
         />
       </div>
+
+      {/* Dev-only simulation control for the live-neighbor layer (renders nothing in prod). Shown in
+          the /draw sandbox too, where the sim runs with zero backend. */}
+      <SimNeighborsPanel />
 
       {/* Bottom controls — zoom bar + toolbar laid out in one responsive row.
           flex-wrap lets the zoom bar drop above the toolbar on narrow screens

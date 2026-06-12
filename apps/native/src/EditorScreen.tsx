@@ -1,9 +1,16 @@
-import { useRef, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Alert, Image, type LayoutChangeEvent } from 'react-native'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
-import type { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
-import { uploadTileArtwork, completeTileAndMaybeReveal, releaseTile, moderateContent, GUIDELINES_MESSAGE, type Tile, type Canvas } from '@drawie/data'
+import type { ToolId, ToolSettings, ToolSettingsMap, AssistSettings, StrokeSample } from '@drawie/core'
+import {
+  uploadTileArtwork, completeTileAndMaybeReveal, releaseTile, moderateContent, GUIDELINES_MESSAGE,
+  getTilesForCanvas, tileArtworkUrl, supabase, NEIGHBOR_OFFSETS, inGridNeighbors,
+  type Tile, type Canvas,
+} from '@drawie/data'
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas'
+import { LiveNeighborStrip } from './render/LiveNeighborStrip'
+import { useLiveNeighborsNative } from './hooks/useLiveNeighborsNative'
+import { readSimConfig, writeSimConfig, restartSim, simAllowed } from './lib/simConfig'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
 import { ColorPalette } from './ui/ColorPalette'
@@ -57,6 +64,55 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   const [submitError, setSubmitError] = useState<string | null>(null)
   const nextId = useRef(2)
   const layerRefs = useRef(new Map<number, DrawCanvasHandle>())
+
+  // ── realtime live-neighbor layer ──────────────────────────────────────────
+  const [userId, setUserId] = useState<string | undefined>(undefined)
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? undefined)).catch(() => {}) }, [])
+  const live = useLiveNeighborsNative({
+    canvasId, tileRow: tile?.row, tileCol: tile?.col,
+    gridRows: canvas?.gridRows, gridCols: canvas?.gridCols, userId,
+  })
+  const currentStrokeId = useRef<string | null>(null)
+  const onLiveStart = (st: { toolId: ToolId; settings: ToolSettings; assist: AssistSettings; seed: number; first: StrokeSample }) => {
+    const bc = live.broadcaster
+    if (!bc) return
+    currentStrokeId.current = `${st.seed.toString(36)}-${Date.now()}`
+    bc.begin({ strokeId: currentStrokeId.current, toolId: st.toolId, settings: st.settings, assist: st.assist, seed: st.seed }, st.first)
+  }
+  const onLiveAppend = (samples: StrokeSample[]) => { if (currentStrokeId.current) live.broadcaster?.append(samples) }
+  const onLiveEnd = (ticks?: number[]) => { if (currentStrokeId.current) { live.broadcaster?.end(undefined, ticks); currentStrokeId.current = null } }
+
+  // Static neighbor artwork (real adjacent-tile art) — fetched once for the slivers.
+  const [neighborArt, setNeighborArt] = useState<Record<number, string>>({})
+  useEffect(() => {
+    if (!canvasId || !tile || !canvas?.gridRows || !canvas?.gridCols) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const tiles = await getTilesForCanvas(canvasId)
+        const byPos = new Map(tiles.map((t) => [`${t.row}:${t.col}`, t]))
+        const cells = inGridNeighbors({ row: tile.row, col: tile.col }, canvas.gridRows, canvas.gridCols)
+        const out: Record<number, string> = {}
+        await Promise.all(cells.map(async ({ cell, row, col }) => {
+          const nt = byPos.get(`${row}:${col}`)
+          if (nt?.artworkPath) {
+            const uri = await tileArtworkUrl(nt.artworkPath)
+            if (uri) out[cell] = uri
+          }
+        }))
+        if (!cancelled) setNeighborArt(out)
+      } catch { /* slivers just stay empty */ }
+    })()
+    return () => { cancelled = true }
+  }, [canvasId, tile?.row, tile?.col, canvas?.gridRows, canvas?.gridCols])
+
+  // Stage layout — measured so the artboard can be inset, leaving a sliver margin for the neighbors.
+  const [wrap, setWrap] = useState({ w: 0, h: 0 })
+  const onWrapLayout = (e: LayoutChangeEvent) => setWrap({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
+
+  // Dev-only simulation config (the harness for testing without a 2nd user).
+  const [simCfg, setSimCfg] = useState(readSimConfig)
+  const applySim = (patch: Partial<typeof simCfg>) => { setSimCfg((c) => ({ ...c, ...patch })); writeSimConfig(patch) }
 
   const s = settingsMap[tool]
   const patch = (p: Partial<ToolSettings>) => setSettingsMap((m) => ({ ...m, [tool]: { ...m[tool], ...p } }))
@@ -160,6 +216,19 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     )
   }
 
+  // Sliver-stage geometry (mirrors web Canvas.tsx with tilePx → inner): a centred S×S stage with the
+  // artboard inset by `sliver` on all sides; the up-to-8 neighbor strips fill the margin.
+  const S = Math.min(wrap.w, wrap.h)
+  const sliver = Math.max(8, Math.round(S * 0.05))
+  const inner = S - 2 * sliver
+  const stageLeft = (wrap.w - S) / 2
+  const stageTop = (wrap.h - S) / 2
+  const innerOffset = inner - sliver
+  const gridKnown = tile != null && canvas?.gridRows != null && canvas?.gridCols != null
+  const neighborCells = gridKnown && inner > 0
+    ? inGridNeighbors({ row: tile!.row, col: tile!.col }, canvas!.gridRows, canvas!.gridCols)
+    : []
+
   return (
     <View style={styles.fill}>
       <View style={styles.topBar}>
@@ -175,25 +244,79 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
       </View>
       {!!submitError && <Text style={styles.submitError} numberOfLines={2}>{submitError}</Text>}
       {!!canvas?.styleGuidance && <Text style={styles.rules} numberOfLines={2}>“{canvas.styleGuidance}”</Text>}
-      <View style={styles.canvasWrap}>
-        {layers.map((L, i) => (
-          <View
-            key={L.id}
-            style={[StyleSheet.absoluteFill, { zIndex: i, opacity: L.visible ? L.opacity : 0 }]}
-            pointerEvents={L.id === activeId ? 'auto' : 'none'}
-          >
-            <DrawCanvas
-              ref={(h) => { if (h) layerRefs.current.set(L.id, h); else layerRefs.current.delete(L.id) }}
-              active={L.id === activeId}
-              tool={tool}
-              settings={s}
-              onHistory={(h) => setHistById((m) => ({ ...m, [L.id]: h }))}
-            />
+      <View style={styles.canvasWrap} onLayout={onWrapLayout}>
+        {inner > 0 && (
+          <View style={{ position: 'absolute', left: stageLeft, top: stageTop, width: S, height: S }}>
+            {/* Neighbor slivers — static adjacent-tile art + the ephemeral live layer on top. */}
+            {neighborCells.map(({ cell }) => {
+              const o = NEIGHBOR_OFFSETS[cell]
+              const stripLeft = o.col === -1 ? 0 : o.col === 0 ? sliver : sliver + inner
+              const stripTop = o.row === -1 ? 0 : o.row === 0 ? sliver : sliver + inner
+              const stripW = o.col === 0 ? inner : sliver
+              const stripH = o.row === 0 ? inner : sliver
+              const imgOffsetLeft = o.col === -1 ? -innerOffset : 0
+              const imgOffsetTop = o.row === -1 ? -innerOffset : 0
+              const art = neighborArt[cell]
+              return (
+                <View key={cell} style={{ position: 'absolute', left: stripLeft, top: stripTop, width: stripW, height: stripH, overflow: 'hidden', backgroundColor: '#eceef3' }}>
+                  {art && (
+                    <Image
+                      source={{ uri: art }}
+                      style={{ position: 'absolute', left: imgOffsetLeft, top: imgOffsetTop, width: inner, height: inner }}
+                      resizeMode="cover"
+                    />
+                  )}
+                  <LiveNeighborStrip
+                    cell={cell} inner={inner} stripW={stripW} stripH={stripH}
+                    imgOffsetLeft={imgOffsetLeft} imgOffsetTop={imgOffsetTop} register={live.registerStrip}
+                  />
+                </View>
+              )
+            })}
+
+            {/* Artboard — inset by `sliver`; white paper, stacked layer canvases. */}
+            <View style={{ position: 'absolute', left: sliver, top: sliver, width: inner, height: inner, backgroundColor: '#fff' }}>
+              {layers.map((L, i) => (
+                <View
+                  key={L.id}
+                  style={[StyleSheet.absoluteFill, { zIndex: i, opacity: L.visible ? L.opacity : 0 }]}
+                  pointerEvents={L.id === activeId ? 'auto' : 'none'}
+                >
+                  <DrawCanvas
+                    ref={(h) => { if (h) layerRefs.current.set(L.id, h); else layerRefs.current.delete(L.id) }}
+                    active={L.id === activeId}
+                    tool={tool}
+                    settings={s}
+                    onHistory={(h) => setHistById((m) => ({ ...m, [L.id]: h }))}
+                    onLiveStart={onLiveStart}
+                    onLiveAppend={onLiveAppend}
+                    onLiveEnd={onLiveEnd}
+                  />
+                </View>
+              ))}
+            </View>
           </View>
-        ))}
+        )}
       </View>
 
       <View style={styles.panel}>
+        {simAllowed() && (
+          <View style={styles.devRow}>
+            <Text style={styles.devLabel}>DEV neighbors</Text>
+            <Pressable onPress={() => applySim({ enabled: !simCfg.enabled })} style={[styles.devBtn, simCfg.enabled && styles.devBtnOn]}>
+              <Text style={styles.devBtnText}>{simCfg.enabled ? 'sim on' : 'sim off'}</Text>
+            </Pressable>
+            <Pressable onPress={() => applySim({ mode: simCfg.mode === 'cursor' ? 'painting' : 'cursor' })} style={styles.devBtn}>
+              <Text style={styles.devBtnText}>{simCfg.mode}</Text>
+            </Pressable>
+            <Pressable onPress={() => applySim({ count: simCfg.count >= 8 ? 1 : simCfg.count + 1 })} style={styles.devBtn}>
+              <Text style={styles.devBtnText}>n {simCfg.count}</Text>
+            </Pressable>
+            <Pressable onPress={() => restartSim()} style={styles.devBtn}>
+              <Text style={styles.devBtnText}>redraw</Text>
+            </Pressable>
+          </View>
+        )}
         <ColorPalette color={s.color} onChange={(c) => patch({ color: c })} palette={palette} />
         <Slider label="Size" value={s.size} min={1} max={120} onChange={(v) => patch({ size: v })} />
         <Slider label="Opacity" value={s.opacity} min={0.05} max={1} step={0.01} onChange={(v) => patch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
@@ -205,10 +328,10 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
         <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
 
         <View style={styles.toolRow}>
-          <Pressable onPress={() => ref(activeId)?.undo()} disabled={!hist.canUndo} style={[styles.action, !hist.canUndo && styles.actionOff]}>
+          <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} style={[styles.action, !hist.canUndo && styles.actionOff]}>
             <Text style={styles.actionText}>↶</Text>
           </Pressable>
-          <Pressable onPress={() => ref(activeId)?.redo()} disabled={!hist.canRedo} style={[styles.action, !hist.canRedo && styles.actionOff]}>
+          <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} style={[styles.action, !hist.canRedo && styles.actionOff]}>
             <Text style={styles.actionText}>↷</Text>
           </Pressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools} style={styles.toolsScroll}>
@@ -218,7 +341,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable onPress={() => ref(activeId)?.clear()} style={styles.clear}>
+          <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} style={styles.clear}>
             <Text style={styles.clearText}>Clear</Text>
           </Pressable>
         </View>
@@ -237,7 +360,12 @@ const styles = StyleSheet.create({
   submitOff: { opacity: 0.5 },
   submitText: { fontSize: 13, color: '#fff', fontWeight: '700' },
   submitError: { color: '#ef476f', fontSize: 12, textAlign: 'center', paddingHorizontal: 12, paddingVertical: 4 },
-  canvasWrap: { flex: 1, backgroundColor: '#fff' },
+  canvasWrap: { flex: 1, backgroundColor: '#e9ebf0' },
+  devRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  devLabel: { fontSize: 10, color: '#999', fontWeight: '700', textTransform: 'uppercase' },
+  devBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#dfe1e8' },
+  devBtnOn: { backgroundColor: '#7c8cff' },
+  devBtnText: { fontSize: 11, color: '#333', fontWeight: '600' },
   panel: {
     paddingTop: 8, paddingBottom: 28, paddingHorizontal: 12, gap: 6,
     backgroundColor: '#f4f4f6', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#ddd',
