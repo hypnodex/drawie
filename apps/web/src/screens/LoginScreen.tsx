@@ -117,7 +117,7 @@ export default function LoginScreen() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Button variant="secondary" className="w-full" onClick={onGoogle} disabled={busy !== null}>
+                  <Button variant="outline" className="w-full" onClick={onGoogle} disabled={busy !== null}>
                     {busy === 'google' ? <Loader2 className="size-4 animate-spin" /> : 'Continue with Google'}
                   </Button>
                   <Button variant="ghost" className="w-full" onClick={onGuest} disabled={busy !== null}>
