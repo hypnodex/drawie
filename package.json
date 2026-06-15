@@ -7,9 +7,12 @@
   "engines": {
     "node": "22.x"
   },
-  "//optionalDependencies": "Workaround for npm/cli#4828. The lockfile generated on macOS records a package node ONLY for the host's rollup native binary (darwin-arm64) and OMITS linux — so Vercel's linux install can't find @rollup/rollup-linux-x64-gnu and `vite build` fails with 'Cannot find module'. Declaring it as a DIRECT optional dep forces npm to write a real package node (resolved+integrity) into the lockfile: linux installs it, macOS skips it via os/cpu. Keep the version EXACTLY in sync with rollup (transitive via vite — currently 4.61.0).",
+  "//optionalDependencies": "Workaround for npm/cli#4828. The lockfile generated on macOS records package nodes ONLY for the host's (darwin-arm64) native binaries and OMITS the linux ones — so Vercel's glibc-linux install can't find them and `vite build` fails with 'Cannot find module ...linux-x64-gnu'. Declaring each linux binary the build needs as a DIRECT optional dep forces a real package node (resolved+integrity) into the lockfile: linux installs them, macOS skips via os/cpu/libc. These are the build toolchain's native deps (rollup, esbuild, lightningcss, @tailwindcss/oxide); KEEP EACH VERSION EXACTLY in sync with its parent (rollup 4.61.0 / esbuild 0.21.5 / lightningcss 1.32.0 / oxide 4.3.0). Only glibc/gnu + esbuild's linux-x64 are needed (Vercel is glibc; musl + @supabase/cli not used by the build).",
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.61.0"
+    "@rollup/rollup-linux-x64-gnu": "4.61.0",
+    "@esbuild/linux-x64": "0.21.5",
+    "lightningcss-linux-x64-gnu": "1.32.0",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.0"
   },
   "//workspaces": "apps/native is intentionally EXCLUDED — it has React Native + react-native-skia deps that must not enter the web build's install. It installs independently (see apps/native/NATIVE_PLAN.md). Keep this list explicit rather than apps/* so adding the native app can't disturb the verified web workspace.",
   "workspaces": [
