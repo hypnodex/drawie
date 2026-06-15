@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { StyleSheet, View, Text, Pressable, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
 import { joinPrivateCanvas, type Canvas, type Tile } from '@drawie/data'
+import { Text } from '../components/ui/text'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { ScreenHeader } from '../components/ui/screen-header'
 
 /** Pull the opaque token out of a full guest link (…/join/<token> or …?token=<token>) or a raw code. */
 export function extractToken(s: string): string {
@@ -12,6 +16,8 @@ export function extractToken(s: string): string {
  * Join a private canvas from an invite — paste the guest link or code. join_private_canvas resolves
  * the token, assigns an artboard, and returns {canvas, tile}; we drop straight into the editor to draw
  * it. (Deep links — drawie://join?token=… — are handled in App.tsx; this is the manual path.)
+ *
+ * Phase 3 (native shadcn): StyleSheet → NativeWind + RN-Reusables primitives over the shadcn tokens.
  */
 export function JoinScreen({ onBack, onJoined }: { onBack: () => void; onJoined: (canvas: Canvas, tile: Tile) => void }) {
   const [input, setInput] = useState('')
@@ -34,16 +40,14 @@ export function JoinScreen({ onBack, onJoined }: { onBack: () => void; onJoined:
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
-      <View style={styles.header}>
-        <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Canvases</Text></Pressable>
-        <Text style={styles.title}>Join private</Text>
-        <View style={{ width: 90 }} />
-      </View>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-background">
+      <ScreenHeader title="Join private" onBack={onBack} backLabel="Canvases" />
 
-      <View style={styles.body}>
-        <Text style={styles.sub}>Paste the invite link or code someone shared with you.</Text>
-        <TextInput
+      <View className="mt-5 w-full max-w-[520px] gap-3.5 self-center p-5">
+        <Text className="text-center text-sm leading-5 text-muted-foreground">
+          Paste the invite link or code someone shared with you.
+        </Text>
+        <Input
           value={input}
           onChangeText={setInput}
           onSubmitEditing={join}
@@ -51,28 +55,12 @@ export function JoinScreen({ onBack, onJoined }: { onBack: () => void; onJoined:
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="Invite link or code"
-          placeholderTextColor="#bbb"
-          style={styles.input}
         />
-        {!!error && <Text style={styles.error}>{error}</Text>}
-        <Pressable style={[styles.btn, (!input.trim() || busy) && styles.btnOff]} onPress={join} disabled={!input.trim() || busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Join & draw</Text>}
-        </Pressable>
+        {!!error && <Text className="text-center text-sm text-destructive">{error}</Text>}
+        <Button onPress={join} disabled={!input.trim() || busy}>
+          {busy ? <ActivityIndicator color="white" /> : <Text>Join & draw</Text>}
+        </Button>
       </View>
     </KeyboardAvoidingView>
   )
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  back: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 90 },
-  title: { fontSize: 17, fontWeight: '700', color: '#1a1a2e' },
-  body: { padding: 20, gap: 14, maxWidth: 520, width: '100%', alignSelf: 'center', marginTop: 20 },
-  sub: { fontSize: 14, color: '#777', textAlign: 'center', lineHeight: 20 },
-  input: { borderWidth: 1, borderColor: '#e3e3e8', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#1a1a2e', backgroundColor: '#fafafc' },
-  error: { color: '#ef476f', fontSize: 13, textAlign: 'center' },
-  btn: { backgroundColor: '#7c8cff', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  btnOff: { opacity: 0.4 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-})
