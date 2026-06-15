@@ -1,4 +1,4 @@
-import { Surface } from '@heroui/react'
+import { Surface } from '../components/ui/Surface'
 import { Eyebrow } from '../components/ui/Eyebrow'
 import { Heading } from '../components/ui/Heading'
 
