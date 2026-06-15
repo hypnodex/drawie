@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { Button, Chip, Surface } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Surface } from '@/components/ui/Surface'
 import { useAuth } from '../../state/AuthContext'
 import { Eyebrow } from '../ui/Eyebrow'
 import { Heading } from '../ui/Heading'
@@ -129,8 +131,8 @@ export function DrawingOfTheMonth() {
           {/* title + description */}
           <div>
             <div className="flex items-center gap-2 flex-wrap mb-3">
-              <Chip color="accent" variant="primary" size="sm">{canvas.category}</Chip>
-              <Chip color="default" variant="soft" size="sm">{canvas.style}</Chip>
+              <Badge>{canvas.category}</Badge>
+              <Badge variant="secondary">{canvas.style}</Badge>
             </div>
             <Heading level={2} size="md">{canvas.title}</Heading>
             <p className="mt-2 text-sm text-[var(--muted)] leading-relaxed line-clamp-3">
@@ -182,12 +184,11 @@ export function DrawingOfTheMonth() {
             {isAuthed ? (
               <>
                 <Button
-                  variant={votedThis ? 'secondary' : 'primary'}
+                  variant={votedThis ? 'secondary' : 'default'}
                   size="lg"
-                  fullWidth
-                  onPress={handleVote}
-                  isDisabled={voting}
-                  className={votedThis ? 'ring-1 ring-[var(--accent)]' : ''}
+                  onClick={handleVote}
+                  disabled={voting}
+                  className={['w-full', votedThis ? 'ring-1 ring-[var(--accent)]' : ''].join(' ')}
                 >
                   {voting
                     ? 'Saving…'
@@ -218,8 +219,8 @@ export function DrawingOfTheMonth() {
               <Button
                 variant="secondary"
                 size="lg"
-                fullWidth
-                onPress={() => nav('/login')}
+                className="w-full"
+                onClick={() => nav('/login')}
               >
                 Sign in to vote →
               </Button>
