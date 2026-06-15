@@ -1,4 +1,4 @@
-import { Surface } from '@heroui/react'
+import { Surface } from '@/components/ui/Surface'
 import type { Canvas } from '@drawie/data'
 import { CanvasCard } from './CanvasCard'
 

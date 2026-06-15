@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Spinner } from '@heroui/react'
+import { Button } from '../ui/button'
+import { Spinner } from '../ui/Spinner'
 import type { Canvas, Tile } from '@drawie/data'
 import { getTilesForCanvas, tileArtworkUrl } from '@drawie/data'
 import { getCanvas } from '@drawie/data'
@@ -135,7 +136,7 @@ export function MosaicProgress({ canvas, myTileId, onLeave }: Props) {
 
         {onLeave && (
           <div className="mt-8">
-            <Button variant="secondary" size="md" onPress={onLeave}>Done</Button>
+            <Button onClick={onLeave}>Done</Button>
           </div>
         )}
       </div>

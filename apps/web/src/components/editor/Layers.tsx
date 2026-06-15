@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Button, Tooltip } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Layer, MAX_LAYERS } from '@drawie/core'
 import {
   ChevronDownIcon, EyeIcon, EyeOffIcon, LayersIcon,
@@ -42,23 +43,23 @@ export function LayersPanel({
         </div>
         <div className="flex items-center gap-1">
           <Tooltip>
-            <Tooltip.Trigger>
-              <Button isIconOnly size="sm" variant="secondary" onPress={onAdd} isDisabled={!canAdd} aria-label="Add layer">
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="secondary" onClick={onAdd} disabled={!canAdd} aria-label="Add layer" className="size-8">
                 <PlusIcon width={16} height={16} />
               </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>{canAdd ? 'Add layer' : `Max ${MAX_LAYERS} layers`}</Tooltip.Content>
+            </TooltipTrigger>
+            <TooltipContent>{canAdd ? 'Add layer' : `Max ${MAX_LAYERS} layers`}</TooltipContent>
           </Tooltip>
           {floating && (
             <Tooltip>
-              <Tooltip.Trigger>
-                <Button isIconOnly size="sm" variant="ghost" onPress={() => setCollapsed((c) => !c)} aria-label={collapsed ? 'Expand' : 'Collapse'}>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? 'Expand' : 'Collapse'} className="size-8">
                   <span className={['inline-flex transition-transform', collapsed ? '-rotate-90' : ''].join(' ')}>
                     <ChevronDownIcon width={18} height={18} />
                   </span>
                 </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>{collapsed ? 'Expand' : 'Collapse'}</Tooltip.Content>
+              </TooltipTrigger>
+              <TooltipContent>{collapsed ? 'Expand' : 'Collapse'}</TooltipContent>
             </Tooltip>
           )}
         </div>

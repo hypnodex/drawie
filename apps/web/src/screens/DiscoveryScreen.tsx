@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Button } from '@heroui/react'
+import { Button } from '../components/ui/button'
 import { HeroSection } from '../components/discovery/HeroSection'
 import { DrawingOfTheMonth } from '../components/discovery/DrawingOfTheMonth'
 import { FilterBar, DEFAULT_FILTERS, ActiveFilters } from '../components/discovery/FilterBar'
@@ -150,15 +150,13 @@ function CarouselArrow({
 }) {
   return (
     <Button
-      isIconOnly
-      onPress={onPress}
+      onClick={onPress}
       aria-label={direction === 'prev' ? 'Previous' : 'Next'}
-      variant={primary ? 'primary' : 'secondary'}
       className={[
-        'w-11 h-11 rounded-full',
+        'w-11 h-11 rounded-full p-0',
         primary
-          ? 'bg-[var(--foreground)] text-[var(--background)]'
-          : 'bg-[var(--surface-secondary)] text-[var(--foreground)]',
+          ? 'bg-[var(--foreground)] text-[var(--background)] hover:bg-[var(--foreground)]/90'
+          : 'bg-[var(--surface-secondary)] text-[var(--foreground)] hover:bg-[var(--surface-tertiary)]',
       ].join(' ')}
     >
       <svg

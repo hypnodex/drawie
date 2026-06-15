@@ -1,8 +1,10 @@
-import { useState, type Key } from 'react'
-import {
-  buttonVariants, Button, Chip, Disclosure, Label,
-  SearchField, Surface, ToggleButton, ToggleButtonGroup,
-} from '@heroui/react'
+import { useState } from 'react'
+import { Search, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Surface } from '@/components/ui/Surface'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { CanvasStatus } from '@drawie/data'
 import { CATEGORIES } from '../../mock/categories'
 import { CategoryChip } from '../canvas/CategoryChip'
@@ -67,38 +69,45 @@ export function FilterBar({ filters, onChange, resultCount }: Props) {
   return (
     <Surface variant="secondary" className="rounded-[var(--radius)] p-5 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        {/* HeroUI v3 SearchField — canonical compound (Label + Group → SearchIcon + Input + ClearButton) */}
-        <SearchField
-          value={filters.search}
-          onChange={setSearch}
-          aria-label="Search canvases"
-          className="flex-1 min-w-[200px] max-w-md"
-        >
-          <Label className="sr-only">Search canvases</Label>
-          <SearchField.Group className="w-full">
-            <SearchField.SearchIcon />
-            <SearchField.Input placeholder="Search canvases…" />
-            <SearchField.ClearButton />
-          </SearchField.Group>
-        </SearchField>
+        {/* Search field (Phase 2: HeroUI SearchField compound → Input + leading icon + clear button) */}
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted)] pointer-events-none" aria-hidden />
+          <Input
+            type="search"
+            value={filters.search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search canvases…"
+            aria-label="Search canvases"
+            className="pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {filters.search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center size-6 rounded-md text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-tertiary)] transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
 
-        {/* HeroUI v3 ToggleButtonGroup — single-select sort selector */}
-        <ToggleButtonGroup
-          selectionMode="single"
-          selectedKeys={new Set([filters.sort])}
-          onSelectionChange={(keys) => {
-            const next = Array.from(keys as Set<Key>)[0] as ActiveFilters['sort'] | undefined
-            if (next) setSort(next)
-          }}
+        {/* Sort selector (Phase 2: HeroUI ToggleButtonGroup → shadcn single-select ToggleGroup) */}
+        <ToggleGroup
+          type="single"
+          value={filters.sort}
+          onValueChange={(v) => { if (v) setSort(v as ActiveFilters['sort']) }}
+          variant="outline"
+          size="sm"
           aria-label="Sort canvases by"
           className="ml-auto"
         >
           {SORT_OPTIONS.map((opt) => (
-            <ToggleButton key={opt.value} id={opt.value}>
+            <ToggleGroupItem key={opt.value} value={opt.value} className="px-3">
               {opt.label}
-            </ToggleButton>
+            </ToggleGroupItem>
           ))}
-        </ToggleButtonGroup>
+        </ToggleGroup>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -112,29 +121,32 @@ export function FilterBar({ filters, onChange, resultCount }: Props) {
           />
         ))}
 
-        <Disclosure isExpanded={showCats} onExpandedChange={setShowCats} className="ml-2">
-          <Disclosure.Heading>
-            <Disclosure.Trigger className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Categories
-              {filters.categories.length > 0 && (
-                <Chip color="accent" variant="primary" size="sm" className="ml-1">
-                  {filters.categories.length}
-                </Chip>
-              )}
-              <Disclosure.Indicator>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </Disclosure.Indicator>
-            </Disclosure.Trigger>
-          </Disclosure.Heading>
-        </Disclosure>
+        {/* Phase 2: HeroUI Disclosure (used only as a controlled toggle) → plain toggle Button */}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setShowCats((v) => !v)}
+          aria-expanded={showCats}
+          className="ml-2"
+        >
+          Categories
+          {filters.categories.length > 0 && (
+            <Badge className="ml-1">{filters.categories.length}</Badge>
+          )}
+          <svg
+            width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+            className={['transition-transform', showCats ? 'rotate-180' : ''].join(' ')}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </Button>
 
         <span className="ml-auto text-sm text-[var(--muted)]">
           <span className="font-bold text-[var(--foreground)]">{resultCount}</span> {resultCount === 1 ? 'result' : 'results'}
         </span>
         {hasActive && (
-          <Button onPress={clear} variant="ghost" size="sm">
+          <Button onClick={clear} variant="ghost" size="sm">
             Clear all
           </Button>
         )}

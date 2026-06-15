@@ -1,6 +1,8 @@
-import { useState, type Key } from 'react'
-import { Navigate } from 'react-router-dom'
-import { Breadcrumbs, Surface, Tabs } from '@heroui/react'
+import { useState } from 'react'
+import { Navigate, Link as RouterLink } from 'react-router-dom'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Surface } from '@/components/ui/Surface'
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { ButtonLink } from '../components/ui/ButtonLink'
 import { useAuth } from '../state/AuthContext'
 import { CanvasGrid } from '../components/canvas/CanvasGrid'
@@ -42,35 +44,39 @@ export default function MyCanvasesScreen() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-10 sm:py-14">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/">Discover</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/dashboard">Dashboard</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/dashboard/canvases">My canvases</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/">Discover</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/dashboard">Dashboard</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>My canvases</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <header className="mt-6 mb-6">
         <Heading level={1} size="lg">My canvases</Heading>
       </header>
 
       <Tabs
-        selectedKey={tab}
-        onSelectionChange={(k: Key) => setTab(k as TabId)}
+        value={tab}
+        onValueChange={(k) => setTab(k as TabId)}
         aria-label="My canvases"
       >
-        <Tabs.List className="bg-[var(--surface-secondary)] rounded-full p-1 inline-flex">
+        <TabsList className="bg-[var(--surface-secondary)] rounded-full p-1 inline-flex h-auto">
           {TAB_META.map((t) => (
-            <Tabs.Tab
+            <TabsTrigger
               key={t.id}
-              id={t.id}
-              className="px-4 py-1.5 rounded-full font-bold text-xs cursor-pointer data-[selected=true]:bg-[var(--accent)] data-[selected=true]:text-[var(--accent-foreground)]"
+              value={t.id}
+              className="px-4 py-1.5 rounded-full font-bold text-xs cursor-pointer data-[state=active]:bg-[var(--accent)] data-[state=active]:text-[var(--accent-foreground)]"
             >
               <span className="flex items-center gap-2">
                 {t.label}
                 <span className="font-mono text-[10px] tabular-nums opacity-75">({buckets[t.id].length})</span>
               </span>
-            </Tabs.Tab>
+            </TabsTrigger>
           ))}
-        </Tabs.List>
+        </TabsList>
       </Tabs>
 
       <div className="mt-8">

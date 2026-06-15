@@ -1,9 +1,17 @@
 import { useMemo, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, Link as RouterLink } from 'react-router-dom'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/Spinner'
+import { Surface } from '@/components/ui/Surface'
+import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
-  Alert, Breadcrumbs, Button, Checkbox, CheckboxGroup, Input, Radio, RadioGroup,
-  Separator, Spinner, Surface, TextArea,
-} from '@heroui/react'
+  Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { ButtonLink } from '../components/ui/ButtonLink'
 import { useAuth } from '../state/AuthContext'
 import { createCanvas } from '@drawie/data'
@@ -91,10 +99,13 @@ function SoftLockedState() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 sm:px-8 py-10 sm:py-14">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/dashboard">Dashboard</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/create-canvas">Create canvas</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/dashboard">Dashboard</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>Create canvas</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <header className="mt-6">
         <Heading level={1} size="lg">Found your own mosaic.</Heading>
@@ -217,10 +228,13 @@ function Wizard() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 sm:px-8 py-10 sm:py-14">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/dashboard">Dashboard</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/create-canvas">Create canvas</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/dashboard">Dashboard</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>Create canvas</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <header className="mt-6 flex flex-col gap-5">
         <Heading level={1} size="lg">Found your mosaic.</Heading>
@@ -239,45 +253,38 @@ function Wizard() {
       </Surface>
 
       {moderation.isFlagged && (
-        <Alert status="danger" className="mt-6">
-          <Alert.Content>
-            <Alert.Title>
-              {moderation.status === 'error' ? "Couldn't review the canvas" : 'Cannot publish'}
-            </Alert.Title>
-            <Alert.Description className="text-sm leading-snug">{moderation.message}</Alert.Description>
-          </Alert.Content>
+        <Alert variant="destructive" className="mt-6">
+          <AlertTitle>
+            {moderation.status === 'error' ? "Couldn't review the canvas" : 'Cannot publish'}
+          </AlertTitle>
+          <AlertDescription className="text-sm leading-snug">{moderation.message}</AlertDescription>
         </Alert>
       )}
 
       {publishError && (
-        <Alert status="danger" className="mt-6">
-          <Alert.Content>
-            <Alert.Title>Cannot publish</Alert.Title>
-            <Alert.Description className="text-sm leading-snug">{publishError}</Alert.Description>
-          </Alert.Content>
+        <Alert variant="destructive" className="mt-6">
+          <AlertTitle>Cannot publish</AlertTitle>
+          <AlertDescription className="text-sm leading-snug">{publishError}</AlertDescription>
         </Alert>
       )}
 
       <div className="mt-6 flex items-center justify-between gap-3">
         <Button
           variant="secondary"
-          size="md"
-          onPress={() => { moderation.reset(); setStep((s) => Math.max(0, s - 1)) }}
-          isDisabled={step === 0 || publishing || moderation.isChecking}
+          onClick={() => { moderation.reset(); setStep((s) => Math.max(0, s - 1)) }}
+          disabled={step === 0 || publishing || moderation.isChecking}
         >
           ← Back
         </Button>
         {step < WIZARD_STEPS.length - 1 ? (
           <Button
-            variant="primary"
-            size="md"
-            onPress={() => setStep((s) => Math.min(WIZARD_STEPS.length - 1, s + 1))}
-            isDisabled={!canAdvance}
+            onClick={() => setStep((s) => Math.min(WIZARD_STEPS.length - 1, s + 1))}
+            disabled={!canAdvance}
           >
             Continue →
           </Button>
         ) : (
-          <Button variant="primary" size="md" onPress={onPublish} isDisabled={publishing || moderation.isChecking}>
+          <Button onClick={onPublish} disabled={publishing || moderation.isChecking}>
             {moderation.isChecking
               ? <><Spinner size="sm" /> Reviewing content…</>
               : publishing
@@ -322,10 +329,10 @@ function PrivateLinksCreated({ canvas }: { canvas: CanvasDomain }) {
       </div>
 
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
-        <Button variant="primary" size="lg" fullWidth onPress={() => nav(`/host/${canvas.hostToken}`)}>
+        <Button size="lg" className="w-full" onClick={() => nav(`/host/${canvas.hostToken}`)}>
           Open host console →
         </Button>
-        <Button variant="secondary" size="lg" fullWidth onPress={() => nav('/dashboard')}>
+        <Button variant="secondary" size="lg" className="w-full" onClick={() => nav('/dashboard')}>
           Back to dashboard
         </Button>
       </div>
@@ -353,7 +360,7 @@ function LinkRow({ label, hint, url, accent }: { label: string; hint: string; ur
         <code className="flex-1 min-w-0 truncate px-3 py-2 rounded-lg bg-[var(--surface)] font-mono text-xs text-[var(--muted)]">
           {url}
         </code>
-        <Button variant={copied ? 'secondary' : 'primary'} size="sm" onPress={copy}>
+        <Button variant={copied ? 'secondary' : 'default'} size="sm" onClick={copy}>
           {copied ? 'Copied ✓' : 'Copy'}
         </Button>
       </div>
@@ -375,7 +382,7 @@ function BasicsStep({ form, setForm }: { form: FormState; setForm: (f: FormState
       </Field>
 
       <Field label="Short description" hint="One or two sentences. Optional.">
-        <TextArea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Tell people what to expect, why you're starting this mosaic." maxLength={240} />
+        <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Tell people what to expect, why you're starting this mosaic." maxLength={240} />
       </Field>
 
       <Separator />
@@ -419,7 +426,7 @@ function SetupStep({
       <Field label="Visibility">
         <RadioGroup
           value={form.visibility}
-          onChange={(v) => {
+          onValueChange={(v) => {
             const vis = v as FormState['visibility']
             // Private canvases are link-only and always random-assigned.
             setForm({
@@ -554,7 +561,7 @@ function SetupStep({
           </Field>
 
           <Field label="Tile assignment">
-            <RadioGroup value={form.participationMode} onChange={(v) => setForm({ ...form, participationMode: v as FormState['participationMode'] })}>
+            <RadioGroup value={form.participationMode} onValueChange={(v) => setForm({ ...form, participationMode: v as FormState['participationMode'] })}>
               <div className="flex flex-col gap-2">
                 <RadioCard value="free-pick" label="Free pick" hint="Contributors choose their tile." />
                 <RadioCard value="random" label="Random" hint="Tile is assigned on join." />
@@ -575,24 +582,36 @@ function RulesStep({ form, setForm }: { form: FormState; setForm: (f: FormState)
       <StepHeader eyebrow="Step 3 of 4" title="Style rules" body="Set the constraints that make this mosaic recognizable." />
 
       <Field label="Style guidance" required hint="Shown to every contributor inside drawing mode. Keep it punchy.">
-        <TextArea value={form.styleGuidance} onChange={(e) => setForm({ ...form, styleGuidance: e.target.value })} rows={3} placeholder="e.g. Strong directional lighting. Leave white space. No neon." maxLength={200} />
+        <Textarea value={form.styleGuidance} onChange={(e) => setForm({ ...form, styleGuidance: e.target.value })} rows={3} placeholder="e.g. Strong directional lighting. Leave white space. No neon." maxLength={200} />
       </Field>
 
       <Separator />
 
       <Field label="Allowed tools" hint={allToolsAllowed ? 'All tools allowed (no restriction)' : `${form.allowedToolIds.length} of ${TOOL_OPTIONS.length} allowed`}>
-        <CheckboxGroup value={form.allowedToolIds} onChange={(v) => setForm({ ...form, allowedToolIds: v as ToolId[] })}>
-          <div className="flex flex-wrap gap-2">
-            {TOOL_OPTIONS.map((t) => (
-              <Checkbox key={t.id} value={t.id}>
-                <Checkbox.Control />
-                <Checkbox.Content>{t.label}</Checkbox.Content>
-              </Checkbox>
-            ))}
-          </div>
-        </CheckboxGroup>
+        {/* Phase 2: HeroUI CheckboxGroup → individually-controlled shadcn Checkboxes over the array. */}
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {TOOL_OPTIONS.map((t) => {
+            const checked = form.allowedToolIds.includes(t.id)
+            return (
+              <label key={t.id} className="inline-flex items-center gap-2 cursor-pointer text-sm text-[var(--foreground)]">
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(c) =>
+                    setForm({
+                      ...form,
+                      allowedToolIds: c === true
+                        ? [...form.allowedToolIds, t.id]
+                        : form.allowedToolIds.filter((x) => x !== t.id),
+                    })
+                  }
+                />
+                {t.label}
+              </label>
+            )
+          })}
+        </div>
         {!allToolsAllowed && (
-          <Button variant="ghost" size="sm" onPress={() => setForm({ ...form, allowedToolIds: [] })} className="self-start mt-2 text-[11px] font-semibold text-[var(--accent)]">
+          <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, allowedToolIds: [] })} className="self-start mt-2 text-[11px] font-semibold text-[var(--accent)]">
             Allow all tools
           </Button>
         )}
@@ -622,9 +641,8 @@ function RulesStep({ form, setForm }: { form: FormState; setForm: (f: FormState)
             className="flex-1"
           />
           <Button
-            variant={form.background === 'transparent' ? 'primary' : 'secondary'}
-            size="md"
-            onPress={() => setForm({ ...form, background: form.background === 'transparent' ? '#ffffff' : 'transparent' })}
+            variant={form.background === 'transparent' ? 'default' : 'secondary'}
+            onClick={() => setForm({ ...form, background: form.background === 'transparent' ? '#ffffff' : 'transparent' })}
             className="text-xs font-bold"
           >
             Transparent
@@ -709,19 +727,21 @@ function Field({ label, required, hint, children }: { label: string; required?: 
   )
 }
 
+/**
+ * Selectable card. (Phase 2: HeroUI Radio compound → a <label> wrapping a shadcn
+ * RadioGroupItem.) The card-level selected ring / disabled dimming is driven off the
+ * contained radio's state via Tailwind `has-[]` selectors instead of HeroUI's
+ * `data-[selected]/data-[disabled]` on the Radio root.
+ */
 function RadioCard({ value, label, hint, disabled }: { value: string; label: string; hint: string; disabled?: boolean }) {
   return (
-    <Radio
-      value={value}
-      isDisabled={disabled}
-      className="flex items-start gap-3 p-3 rounded-2xl cursor-pointer transition bg-[var(--surface)] hover:bg-[var(--surface-tertiary)] data-[selected=true]:bg-[var(--surface)] data-[selected=true]:ring-1 data-[selected=true]:ring-[var(--accent)] data-[disabled=true]:opacity-55 data-[disabled=true]:cursor-not-allowed"
-    >
-      <Radio.Control />
-      <Radio.Content>
+    <label className="flex items-start gap-3 p-3 rounded-2xl cursor-pointer transition bg-[var(--surface)] hover:bg-[var(--surface-tertiary)] has-[[data-state=checked]]:ring-1 has-[[data-state=checked]]:ring-[var(--accent)] has-[:disabled]:opacity-55 has-[:disabled]:cursor-not-allowed">
+      <RadioGroupItem value={value} disabled={disabled} className="mt-0.5" />
+      <div>
         <div className="text-sm font-bold text-[var(--foreground)]">{label}</div>
         <div className="text-[11px] text-[var(--muted)] mt-0.5">{hint}</div>
-      </Radio.Content>
-    </Radio>
+      </div>
+    </label>
   )
 }
 

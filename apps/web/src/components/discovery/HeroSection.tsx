@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { Heading } from '../ui/Heading'
 
@@ -29,13 +29,13 @@ export function HeroSection() {
             edge from each neighbor. When everyone finishes, the full mosaic is revealed.
           </p>
           <div className="sm:col-span-5 flex flex-wrap items-center gap-3 sm:justify-end">
-            <Button variant="primary" size="lg" onPress={() => {
+            <Button size="lg" onClick={() => {
               const el = document.getElementById('trending')
               if (el) el.scrollIntoView({ behavior: 'smooth' })
             }}>
               Browse canvases <span aria-hidden>→</span>
             </Button>
-            <Button variant="secondary" size="lg" onPress={() => nav('/draw')}>
+            <Button variant="outline" size="lg" onClick={() => nav('/draw')}>
               Try the engine
             </Button>
           </div>

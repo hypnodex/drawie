@@ -1,4 +1,4 @@
-import { Surface } from '@heroui/react'
+import { Surface } from '../ui/Surface'
 import { ButtonLink } from '../ui/ButtonLink'
 import type { Entitlement, User } from '@drawie/data'
 import { COMPLETED_TILES_REQUIRED_TO_FOUND } from '@drawie/data'
@@ -47,7 +47,7 @@ export function ProgressCard({ user, entitlement }: Props) {
             ) : (
               <>
                 <ButtonLink to="/" variant="primary" size="md" className="text-sm">Find a canvas</ButtonLink>
-                <ButtonLink to="/premium" variant="secondary" size="md" className="text-sm">Go Premium</ButtonLink>
+                <ButtonLink to="/premium" variant="tertiary" size="md" className="text-sm">Go Premium</ButtonLink>
               </>
             )}
           </div>

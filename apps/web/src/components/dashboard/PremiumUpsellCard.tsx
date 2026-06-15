@@ -1,5 +1,5 @@
 import { Link as RouterLink } from 'react-router-dom'
-import { Surface } from '@heroui/react'
+import { Surface } from '../ui/Surface'
 import { ButtonLink } from '../ui/ButtonLink'
 import { Heading } from '../ui/Heading'
 

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Button, Chip, Spinner, Surface } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/Spinner'
+import { Surface } from '@/components/ui/Surface'
 import DrawingScreen from './DrawingScreen'
 import { resolveHostToken, reassignParticipant, kickParticipant } from '@drawie/data'
 import { getTilesForCanvas, claimTile, completeTileAndMaybeReveal, uploadTileArtwork } from '@drawie/data'
@@ -115,7 +118,7 @@ export default function PrivateHostScreen() {
         <div>
           <div className="flex items-center gap-2">
             <Eyebrow variant="dot">Host console</Eyebrow>
-            <Chip color="accent" variant="primary" size="sm">Private</Chip>
+            <Badge>Private</Badge>
           </div>
           <Heading level={1} size="lg" className="mt-3">{canvas.title}</Heading>
           <p className="mt-2 text-sm text-[var(--muted)]">
@@ -123,7 +126,7 @@ export default function PrivateHostScreen() {
             {participants.length} joined
           </p>
         </div>
-        <Button variant={hostParticipant ? 'secondary' : 'primary'} size="md" onPress={hostDraw} isDisabled={busy || (freeTiles.length === 0 && !hostParticipant)}>
+        <Button variant={hostParticipant ? 'secondary' : 'default'} onClick={hostDraw} disabled={busy || (freeTiles.length === 0 && !hostParticipant)}>
           {hostParticipant ? 'Continue my artboard' : 'Draw an artboard'}
         </Button>
       </header>
@@ -180,8 +183,8 @@ export default function PrivateHostScreen() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-[var(--foreground)] truncate">{p.name}</span>
-                        {p.id === user?.id && <Chip color="accent" variant="soft" size="sm">You</Chip>}
-                        {p.status === 'completed' && <Chip color="success" variant="soft" size="sm">Done</Chip>}
+                        {p.id === user?.id && <Badge variant="secondary">You</Badge>}
+                        {p.status === 'completed' && <Badge variant="secondary">Done</Badge>}
                       </div>
                       <div className="text-[11px] text-[var(--muted)] font-mono mt-0.5">
                         artboard {tile ? `${tile.row + 1}·${tile.col + 1}` : '—'}

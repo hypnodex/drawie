@@ -1,5 +1,5 @@
 import { NavLink, Link as RouterLink, useNavigate } from 'react-router-dom'
-import { Button } from '@heroui/react'
+import { Button } from '@/components/ui/button'
 import { ProfileMenu } from './ProfileMenu'
 import { NotificationBell } from './NotificationBell'
 
@@ -51,10 +51,8 @@ export function Nav() {
 
       <div className="flex items-center gap-2">
         <Button
-          variant="primary"
-          size="md"
           className="hidden sm:inline-flex font-bold"
-          onPress={() => nav('/create-canvas')}
+          onClick={() => nav('/create-canvas')}
         >
           Start a canvas
         </Button>

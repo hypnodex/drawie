@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { Spinner } from '@heroui/react'
+import { Spinner } from '../components/ui/Spinner'
 import DrawingScreen from './DrawingScreen'
 import { getCanvas } from '@drawie/data'
 import { getTilesForCanvas, claimTile, completeTileAndMaybeReveal, uploadTileArtwork, releaseTile } from '@drawie/data'
