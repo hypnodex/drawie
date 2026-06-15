@@ -137,23 +137,36 @@ export function CanvasScreen({
               )}
             </View>
           ) : (
-            // ── Live tile grid ──────────────────────────────────────────────────────────
+            // ── Live mosaic grid ──────────────────────────────────────────────────────────
+            // Mirrors the web canvas detail: the tile grid is framed as a mosaic taking shape
+            // (rounded preview surface), with a status legend + claim hint underneath.
             <>
-              <Text className="mb-3 text-center text-[13px] text-muted-foreground">Tap an empty tile to claim + draw it.</Text>
-              <View className="flex-row flex-wrap">
-                {tiles!.map((t) => (
-                  <Pressable
-                    key={t.id}
-                    onPress={() => onTile(t)}
-                    disabled={t.status === 'completed' || !!claiming}
-                    className="aspect-square p-0.5"
-                    style={{ width: `${100 / cols}%` }}
-                  >
-                    <View className={cn('flex-1 items-center justify-center rounded-md', cellClasses(t.status), claiming === t.id && 'opacity-70')}>
-                      {claiming === t.id && <ActivityIndicator size="small" color="white" />}
-                    </View>
-                  </Pressable>
-                ))}
+              <View className="overflow-hidden rounded-2xl bg-secondary p-2">
+                <View className="flex-row flex-wrap">
+                  {tiles!.map((t) => (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => onTile(t)}
+                      disabled={t.status === 'completed' || !!claiming}
+                      className="aspect-square p-[1.5px]"
+                      style={{ width: `${100 / cols}%` }}
+                    >
+                      <View className={cn('flex-1 items-center justify-center rounded-[3px]', cellClasses(t.status), claiming === t.id && 'opacity-70')}>
+                        {claiming === t.id && <ActivityIndicator size="small" color="white" />}
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Legend + claim hint (mirrors the web mosaic-tile legend). */}
+              <View className="mt-3 flex-row flex-wrap items-center justify-between gap-y-2">
+                <View className="flex-row items-center gap-3.5">
+                  <Legend swatch="bg-emerald-500" label="Completed" />
+                  <Legend swatch="bg-emerald-400" label="In progress" />
+                  <Legend swatch="border border-border bg-background" label="Empty" />
+                </View>
+                <Text className="text-[12px] font-bold text-foreground">Tap an empty tile to claim →</Text>
               </View>
             </>
           )}
@@ -163,7 +176,16 @@ export function CanvasScreen({
   )
 }
 
+function Legend({ swatch, label }: { swatch: string; label: string }) {
+  return (
+    <View className="flex-row items-center gap-1.5">
+      <View className={cn('h-3 w-3 rounded-[3px]', swatch)} />
+      <Text className="text-[11px] font-medium text-muted-foreground">{label}</Text>
+    </View>
+  )
+}
+
 const cellClasses = (s: Tile['status']) =>
   s === 'completed' ? 'bg-emerald-500'
-    : s === 'in-progress' ? 'bg-amber-400'
-      : 'bg-secondary'
+    : s === 'in-progress' ? 'bg-emerald-400'
+      : 'bg-background'

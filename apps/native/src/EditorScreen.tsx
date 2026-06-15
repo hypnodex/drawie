@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View, Pressable, ScrollView, ActivityIndicator, Alert, Image, type LayoutChangeEvent } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
 import type { ToolId, ToolSettings, ToolSettingsMap, AssistSettings, StrokeSample } from '@drawie/core'
 import {
@@ -18,7 +20,7 @@ import { Text } from './components/ui/text'
 import { cn } from './lib/cn'
 import { LayersCard } from './components/editor/LayersCard'
 import { ToolSettingsPanel } from './components/editor/ToolSettings'
-import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon } from './components/icons'
+import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon, ZoomInIcon, ZoomOutIcon, FitIcon } from './components/icons'
 
 // Icon colors (RN SVG needs concrete colors, not className tokens).
 const FG = 'hsl(142, 12%, 12%)'
@@ -239,6 +241,40 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     )
   }
 
+  // ── canvas zoom/pan (STEP 4) ────────────────────────────────────────────────
+  // Drawing is stylus-only (DrawCanvas ignores non-pen touches), so finger gestures are free for
+  // navigation: pinch to zoom, two-finger drag to pan when zoomed in. The transform is applied to
+  // the whole stage (artboard + neighbor slivers); RNGH maps the pen's touch through the transform
+  // so drawing stays aligned while magnified. Fit/−/+ buttons mirror the web zoom controls.
+  const zScale = useSharedValue(1)
+  const zSaved = useSharedValue(1)
+  const zTx = useSharedValue(0)
+  const zTy = useSharedValue(0)
+  const zSavedTx = useSharedValue(0)
+  const zSavedTy = useSharedValue(0)
+  const zoomStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: zTx.value }, { translateY: zTy.value }, { scale: zScale.value }],
+  }))
+  const zoomGesture = useMemo(() => {
+    const pinch = Gesture.Pinch()
+      .onUpdate((e) => { 'worklet'; const t = zSaved.value * e.scale; zScale.value = t < 1 ? 1 : t > 6 ? 6 : t })
+      .onEnd(() => { 'worklet'; zSaved.value = zScale.value })
+    const drag = Gesture.Pan()
+      .minPointers(2)
+      .onUpdate((e) => { 'worklet'; if (zScale.value <= 1) return; zTx.value = zSavedTx.value + e.translationX; zTy.value = zSavedTy.value + e.translationY })
+      .onEnd(() => { 'worklet'; zSavedTx.value = zTx.value; zSavedTy.value = zTy.value })
+    return Gesture.Simultaneous(pinch, drag)
+    // shared values are stable refs — safe to build the gesture once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const resetPan = () => { zTx.value = withTiming(0); zTy.value = withTiming(0); zSavedTx.value = 0; zSavedTy.value = 0 }
+  const zoomBy = (f: number) => {
+    const t = Math.max(1, Math.min(6, zScale.value * f))
+    zScale.value = withTiming(t); zSaved.value = t
+    if (t === 1) resetPan()
+  }
+  const zoomFit = () => { zScale.value = withTiming(1); zSaved.value = 1; resetPan() }
+
   // Sliver-stage geometry (mirrors web Canvas.tsx with tilePx → inner): a centred S×S stage with the
   // artboard inset by `sliver` on all sides; the up-to-8 neighbor strips fill the margin.
   const S = Math.min(wrap.w, wrap.h)
@@ -279,7 +315,8 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
       {!!submitError && <Text numberOfLines={2} className="px-3 py-1 text-center text-xs text-destructive">{submitError}</Text>}
       <View className="flex-1 bg-muted" onLayout={onWrapLayout}>
         {inner > 0 && (
-          <View style={{ position: 'absolute', left: stageLeft, top: stageTop, width: S, height: S }}>
+          <GestureDetector gesture={zoomGesture}>
+            <Animated.View style={[{ position: 'absolute', left: stageLeft, top: stageTop, width: S, height: S }, zoomStyle]}>
             {/* Neighbor slivers — static adjacent-tile art + the ephemeral live layer on top. */}
             {neighborCells.map(({ cell }) => {
               const o = NEIGHBOR_OFFSETS[cell]
@@ -328,11 +365,25 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                 </View>
               ))}
             </View>
-          </View>
+            </Animated.View>
+          </GestureDetector>
         )}
         {/* ── Floating chrome over the canvas (web-style): Layers card · settings popover · tool dock ── */}
         <View className="absolute right-3 top-3">
           <LayersCard layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} onMerge={mergeDown} />
+        </View>
+
+        {/* Zoom controls (top-left) — pinch / two-finger drag also work; mirrors the web Fit/−/+. */}
+        <View className="absolute left-3 top-3 gap-1.5">
+          <Pressable onPress={() => zoomBy(1.4)} hitSlop={4} className="h-11 w-11 items-center justify-center rounded-xl bg-card shadow-lg">
+            <ZoomInIcon size={21} color={FG} />
+          </Pressable>
+          <Pressable onPress={() => zoomBy(1 / 1.4)} hitSlop={4} className="h-11 w-11 items-center justify-center rounded-xl bg-card shadow-lg">
+            <ZoomOutIcon size={21} color={FG} />
+          </Pressable>
+          <Pressable onPress={zoomFit} hitSlop={4} className="h-11 w-11 items-center justify-center rounded-xl bg-card shadow-lg">
+            <FitIcon size={20} color={FG} />
+          </Pressable>
         </View>
 
         {/* Settings popover — opens above the dock when you tap the active tool (web pattern).
