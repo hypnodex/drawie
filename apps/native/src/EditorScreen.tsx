@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Alert, Image, type LayoutChangeEvent } from 'react-native'
+import { StyleSheet, View, Pressable, ScrollView, ActivityIndicator, Alert, Image, type LayoutChangeEvent } from 'react-native'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
 import type { ToolId, ToolSettings, ToolSettingsMap, AssistSettings, StrokeSample } from '@drawie/core'
 import {
@@ -16,6 +16,8 @@ import { Slider } from './ui/Slider'
 import { ColorPalette } from './ui/ColorPalette'
 import { TexturePicker } from './ui/TexturePicker'
 import { LayersPanel, type LayerMeta } from './ui/LayersPanel'
+import { Text } from './components/ui/text'
+import { cn } from './lib/cn'
 
 const ARTBOARD = 2000 // must match DrawCanvas — the per-layer surface size we composite
 
@@ -230,21 +232,23 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     : []
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.topBar}>
-        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting}><Text style={styles.topBack}>‹ Tiles</Text></Pressable>
-        <Text style={styles.topTitle}>{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
+    <View className="flex-1 bg-background">
+      <View className="flex-row items-center justify-between border-b border-border px-3.5 pt-3.5 pb-1.5">
+        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-[60px]">
+          <Text className="text-[15px] font-semibold text-primary">‹ Tiles</Text>
+        </Pressable>
+        <Text className="text-sm font-semibold text-muted-foreground">{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
         {canSubmit ? (
-          <Pressable onPress={submit} disabled={submitting} style={[styles.submit, submitting && styles.submitOff]} hitSlop={8}>
-            {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitText}>Submit</Text>}
+          <Pressable onPress={submit} disabled={submitting} hitSlop={8} className={cn('h-8 min-w-[60px] items-center justify-center rounded-2xl bg-primary px-3.5', submitting && 'opacity-50')}>
+            {submitting ? <ActivityIndicator size="small" color="white" /> : <Text className="text-[13px] font-bold text-primary-foreground">Submit</Text>}
           </Pressable>
         ) : (
-          <View style={{ width: 60 }} />
+          <View className="w-[60px]" />
         )}
       </View>
-      {!!submitError && <Text style={styles.submitError} numberOfLines={2}>{submitError}</Text>}
-      {!!canvas?.styleGuidance && <Text style={styles.rules} numberOfLines={2}>“{canvas.styleGuidance}”</Text>}
-      <View style={styles.canvasWrap} onLayout={onWrapLayout}>
+      {!!submitError && <Text numberOfLines={2} className="px-3 py-1 text-center text-xs text-destructive">{submitError}</Text>}
+      {!!canvas?.styleGuidance && <Text numberOfLines={2} className="px-4 pt-1 text-center text-xs italic text-muted-foreground">“{canvas.styleGuidance}”</Text>}
+      <View className="flex-1 bg-muted" onLayout={onWrapLayout}>
         {inner > 0 && (
           <View style={{ position: 'absolute', left: stageLeft, top: stageTop, width: S, height: S }}>
             {/* Neighbor slivers — static adjacent-tile art + the ephemeral live layer on top. */}
@@ -299,21 +303,21 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
         )}
       </View>
 
-      <View style={styles.panel}>
+      <View className="gap-1.5 border-t border-border bg-muted px-3 pt-2 pb-7">
         {simAllowed() && (
-          <View style={styles.devRow}>
-            <Text style={styles.devLabel}>DEV neighbors</Text>
-            <Pressable onPress={() => applySim({ enabled: !simCfg.enabled })} style={[styles.devBtn, simCfg.enabled && styles.devBtnOn]}>
-              <Text style={styles.devBtnText}>{simCfg.enabled ? 'sim on' : 'sim off'}</Text>
+          <View className="mb-1 flex-row items-center gap-1.5">
+            <Text className="text-[10px] font-bold uppercase text-muted-foreground">DEV neighbors</Text>
+            <Pressable onPress={() => applySim({ enabled: !simCfg.enabled })} className={cn('rounded-lg px-2 py-1', simCfg.enabled ? 'bg-primary' : 'bg-secondary')}>
+              <Text className={cn('text-[11px] font-semibold', simCfg.enabled ? 'text-primary-foreground' : 'text-secondary-foreground')}>{simCfg.enabled ? 'sim on' : 'sim off'}</Text>
             </Pressable>
-            <Pressable onPress={() => applySim({ mode: simCfg.mode === 'cursor' ? 'painting' : 'cursor' })} style={styles.devBtn}>
-              <Text style={styles.devBtnText}>{simCfg.mode}</Text>
+            <Pressable onPress={() => applySim({ mode: simCfg.mode === 'cursor' ? 'painting' : 'cursor' })} className="rounded-lg bg-secondary px-2 py-1">
+              <Text className="text-[11px] font-semibold text-secondary-foreground">{simCfg.mode}</Text>
             </Pressable>
-            <Pressable onPress={() => applySim({ count: simCfg.count >= 8 ? 1 : simCfg.count + 1 })} style={styles.devBtn}>
-              <Text style={styles.devBtnText}>n {simCfg.count}</Text>
+            <Pressable onPress={() => applySim({ count: simCfg.count >= 8 ? 1 : simCfg.count + 1 })} className="rounded-lg bg-secondary px-2 py-1">
+              <Text className="text-[11px] font-semibold text-secondary-foreground">n {simCfg.count}</Text>
             </Pressable>
-            <Pressable onPress={() => restartSim()} style={styles.devBtn}>
-              <Text style={styles.devBtnText}>redraw</Text>
+            <Pressable onPress={() => restartSim()} className="rounded-lg bg-secondary px-2 py-1">
+              <Text className="text-[11px] font-semibold text-secondary-foreground">redraw</Text>
             </Pressable>
           </View>
         )}
@@ -327,59 +331,25 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
         <LayersPanel layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} />
         <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
 
-        <View style={styles.toolRow}>
-          <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} style={[styles.action, !hist.canUndo && styles.actionOff]}>
-            <Text style={styles.actionText}>↶</Text>
+        <View className="mt-0.5 flex-row items-center">
+          <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} className={cn('mr-1.5 h-9 w-[38px] items-center justify-center rounded-[10px] bg-secondary', !hist.canUndo && 'opacity-[0.35]')}>
+            <Text className="text-lg font-bold text-foreground">↶</Text>
           </Pressable>
-          <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} style={[styles.action, !hist.canRedo && styles.actionOff]}>
-            <Text style={styles.actionText}>↷</Text>
+          <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} className={cn('mr-1.5 h-9 w-[38px] items-center justify-center rounded-[10px] bg-secondary', !hist.canRedo && 'opacity-[0.35]')}>
+            <Text className="text-lg font-bold text-foreground">↷</Text>
           </Pressable>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools} style={styles.toolsScroll}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerClassName="items-center gap-1.5 pr-2">
             {allowedTools.map((id) => (
-              <Pressable key={id} onPress={() => setTool(id)} style={[styles.tool, tool === id && styles.toolActive]}>
-                <Text style={[styles.toolText, tool === id && styles.toolTextActive]}>{id}</Text>
+              <Pressable key={id} onPress={() => setTool(id)} className={cn('rounded-2xl px-3 py-2', tool === id ? 'bg-primary' : 'bg-secondary')}>
+                <Text className={cn('text-[13px]', tool === id ? 'font-semibold text-primary-foreground' : 'text-secondary-foreground')}>{id}</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} style={styles.clear}>
-            <Text style={styles.clearText}>Clear</Text>
+          <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} className="ml-2 rounded-2xl bg-destructive px-3.5 py-2">
+            <Text className="text-[13px] font-semibold text-destructive-foreground">Clear</Text>
           </Pressable>
         </View>
       </View>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
-  topBack: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 60 },
-  topTitle: { fontSize: 14, color: '#555', fontWeight: '600' },
-  rules: { fontSize: 12, color: '#888', fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 16, paddingTop: 4 },
-  submit: { minWidth: 60, height: 32, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 16, backgroundColor: '#7c8cff' },
-  submitOff: { opacity: 0.5 },
-  submitText: { fontSize: 13, color: '#fff', fontWeight: '700' },
-  submitError: { color: '#ef476f', fontSize: 12, textAlign: 'center', paddingHorizontal: 12, paddingVertical: 4 },
-  canvasWrap: { flex: 1, backgroundColor: '#e9ebf0' },
-  devRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  devLabel: { fontSize: 10, color: '#999', fontWeight: '700', textTransform: 'uppercase' },
-  devBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#dfe1e8' },
-  devBtnOn: { backgroundColor: '#7c8cff' },
-  devBtnText: { fontSize: 11, color: '#333', fontWeight: '600' },
-  panel: {
-    paddingTop: 8, paddingBottom: 28, paddingHorizontal: 12, gap: 6,
-    backgroundColor: '#f4f4f6', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#ddd',
-  },
-  toolRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  action: { width: 38, height: 36, borderRadius: 10, marginRight: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e6e6ea' },
-  actionOff: { opacity: 0.35 },
-  actionText: { fontSize: 18, color: '#333', fontWeight: '700' },
-  toolsScroll: { flex: 1 },
-  tools: { gap: 6, paddingRight: 8, alignItems: 'center' },
-  tool: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#e6e6ea' },
-  toolActive: { backgroundColor: '#7c8cff' },
-  toolText: { fontSize: 13, color: '#333', fontWeight: '500' },
-  toolTextActive: { color: '#fff' },
-  clear: { marginLeft: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#ef476f' },
-  clearText: { fontSize: 13, color: '#fff', fontWeight: '600' },
-})
