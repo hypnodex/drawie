@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto' // supabase-js needs a complete URL impl in RN
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { initSupabase } from '@drawie/data'
+import { initSupabase, setEnforceOneTilePerUser } from '@drawie/data'
 
 /**
  * Native Supabase init — the shared @drawie/data client configured for React Native:
@@ -17,3 +17,7 @@ export const supabase = initSupabase({
   detectSessionInUrl: false,
   debug: __DEV__,
 })
+
+// One-tile-per-user is the production rule; dev/test sets EXPO_PUBLIC_ENFORCE_ONE_TILE_PER_USER=false
+// to let one account claim many tiles. Unset (production) defaults to true.
+setEnforceOneTilePerUser(process.env.EXPO_PUBLIC_ENFORCE_ONE_TILE_PER_USER !== 'false')
