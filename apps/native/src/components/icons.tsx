@@ -104,6 +104,20 @@ export const MergeDownIcon = (p: IconProps) => (<Stroke {...p}><Path d="M12 3v10
 export const ChevronDownIcon = (p: IconProps) => (<Stroke {...p}><Path d="M6 9l6 6 6-6" /></Stroke>)
 export const LayersIcon = (p: IconProps) => (<Stroke {...p}><Path d="M12 3l9 5-9 5-9-5 9-5z" /><Path d="M3 13l9 5 9-5" /></Stroke>)
 export const CloseIcon = (p: IconProps) => (<Stroke {...p}><Path d="M6 6l12 12M18 6L6 18" /></Stroke>)
+// Tool-toggle glyphs (stroke) — pressure / wet paint / build-up, ported from web.
+export const PressureIcon = (p: IconProps) => (<Stroke {...p}><Path d="M5 19c2-6 6-9 14-9" /><Path d="M15 7l4 3-3 4" /></Stroke>)
+export const WetIcon = (p: IconProps) => (<Stroke {...p}><Path d="M12 3s6 7 6 11a6 6 0 11-12 0c0-4 6-11 6-11z" /></Stroke>)
+export const BuildUpIcon = (p: IconProps) => (
+  <Svg width={p.size ?? 20} height={p.size ?? 20} viewBox="0 0 24 24" fill={p.color ?? '#000'} stroke="none">
+    <Rect x={3} y={15} width={18} height={5} rx={1} opacity={0.45} />
+    <Rect x={5} y={10} width={14} height={5} rx={1} opacity={0.7} />
+    <Rect x={7} y={5} width={10} height={5} rx={1} />
+  </Svg>
+)
+// Zoom glyphs (stroke) — used by the canvas zoom controls.
+export const ZoomInIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={11} cy={11} r={7} /><Path d="M21 21l-4.3-4.3" /><Path d="M11 8v6M8 11h6" /></Stroke>)
+export const ZoomOutIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={11} cy={11} r={7} /><Path d="M21 21l-4.3-4.3" /><Path d="M8 11h6" /></Stroke>)
+export const FitIcon = (p: IconProps) => (<Stroke {...p}><Path d="M4 9V5a1 1 0 011-1h4" /><Path d="M20 9V5a1 1 0 00-1-1h-4" /><Path d="M4 15v4a1 1 0 001 1h4" /><Path d="M20 15v4a1 1 0 01-1 1h-4" /></Stroke>)
 
 /** Tool → glyph, in the web's TOOL_LIST order. */
 export const TOOL_ICON: Record<ToolId, (p: IconProps) => React.ReactElement> = {

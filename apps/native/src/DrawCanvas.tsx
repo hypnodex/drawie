@@ -28,10 +28,12 @@ import { RNSkiaBackend } from './render/RNSkiaBackend'
  */
 
 const ARTBOARD = 2000
-const MAX_UNDO = 10 // pixel-checkpoint undo depth (≈16MB each at 2000²)
+const MAX_UNDO = 30 // pixel-checkpoint undo depth (≈16MB each at 2000²; only the active layer accumulates)
 
 export type DrawCanvasHandle = {
   undo: () => void; redo: () => void; clear: () => void
+  /** Composite another layer's snapshot onto this surface (layer merge-down). Caller disposes the image. */
+  mergeImage: (img: SkImage) => void
   /** Snapshot the layer's current pixels (for save/submit compositing). Caller disposes the
    *  returned image. null if the canvas has been unmounted/disposed. */
   snapshot: () => SkImage | null
@@ -247,6 +249,21 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     notifyHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, scheduleDisplay])
+  // Merge-down: composite another layer's snapshot onto this surface, then checkpoint it for undo
+  // (so the merge is itself undoable) and invalidate redo. No-op mid-stroke / after unmount.
+  const doMergeImage = useCallback((img: SkImage) => {
+    if (eng.current || !alive.current) return
+    backend.surface.getCanvas().drawImage(img, 0, 0)
+    backend.flush()
+    undoSnaps.current.push(backend.surface.makeImageSnapshot())
+    while (undoSnaps.current.length > MAX_UNDO + 1) undoSnaps.current.shift()!.dispose()
+    redoSnaps.current.forEach((sn) => sn.dispose())
+    redoSnaps.current = []
+    redoStrokes.current = []
+    scheduleDisplay()
+    notifyHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend, scheduleDisplay])
   // Save/submit reads the committed pixels. flush() first so any pending engine draws are on
   // the surface, then snapshot. Returns null after unmount (surface disposed). Caller disposes.
   const doSnapshot = useCallback((): SkImage | null => {
@@ -254,7 +271,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     backend.flush()
     return backend.surface.makeImageSnapshot()
   }, [backend])
-  useImperativeHandle(ref, () => ({ undo: doUndo, redo: doRedo, clear: doClear, snapshot: doSnapshot }), [doUndo, doRedo, doClear, doSnapshot])
+  useImperativeHandle(ref, () => ({ undo: doUndo, redo: doRedo, clear: doClear, snapshot: doSnapshot, mergeImage: doMergeImage }), [doUndo, doRedo, doClear, doSnapshot, doMergeImage])
 
   // ── gesture (UI-thread worklets; one runOnJS per event) ─────────────────────
   const press = (e: { stylusData?: { pressure: number; tiltX: number; tiltY: number } }) => {

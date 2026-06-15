@@ -13,12 +13,11 @@ import { useLiveNeighborsNative } from './hooks/useLiveNeighborsNative'
 import { readSimConfig, writeSimConfig, restartSim, simAllowed } from './lib/simConfig'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
-import { ColorPalette } from './ui/ColorPalette'
-import { TexturePicker } from './ui/TexturePicker'
 import type { LayerMeta } from './ui/LayersPanel'
 import { Text } from './components/ui/text'
 import { cn } from './lib/cn'
 import { LayersCard } from './components/editor/LayersCard'
+import { ToolSettingsPanel } from './components/editor/ToolSettings'
 import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon } from './components/icons'
 
 // Icon colors (RN SVG needs concrete colors, not className tokens).
@@ -140,6 +139,21 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     const next = layers.filter((L) => L.id !== id)
     setLayers(next)
     if (id === activeId) setActiveId(next[next.length - 1].id)
+  }
+  // Merge-down: composite layer `id` onto the layer directly below it (array order = z, bottom→top),
+  // then drop the merged layer. Honors the source layer's opacity so the result is WYSIWYG.
+  const mergeDown = (id: number) => {
+    const idx = layers.findIndex((L) => L.id === id)
+    if (idx <= 0) return // bottom layer has nothing beneath it
+    const below = layers[idx - 1]
+    const img = ref(id)?.snapshot()
+    if (img) {
+      ref(below.id)?.mergeImage(img)
+      img.dispose()
+    }
+    const next = layers.filter((L) => L.id !== id)
+    setLayers(next)
+    setActiveId(below.id)
   }
   const toggleVisible = (id: number) =>
     setLayers((ls) => ls.map((L) => (L.id === id ? { ...L, visible: !L.visible } : L)))
@@ -318,19 +332,16 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
         )}
         {/* ── Floating chrome over the canvas (web-style): Layers card · settings popover · tool dock ── */}
         <View className="absolute right-3 top-3">
-          <LayersCard layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} />
+          <LayersCard layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} onMerge={mergeDown} />
         </View>
 
-        {/* Settings popover — opens above the dock when you tap the active tool (web pattern). */}
+        {/* Settings popover — opens above the dock when you tap the active tool (web pattern).
+            Contextual per-tool controls (ToolSettings) like the web; scrolls when a tool is control-heavy. */}
         {settingsOpen && (
-          <View pointerEvents="box-none" className="absolute inset-x-0 bottom-[88px] items-center px-3">
-            <View className="w-full max-w-md gap-2 rounded-2xl bg-card p-3 shadow-lg">
-              <ColorPalette color={s.color} onChange={(c) => patch({ color: c })} palette={palette} />
-              <Slider label="Size" value={s.size} min={1} max={120} onChange={(v) => patch({ size: v })} />
-              <Slider label="Opacity" value={s.opacity} min={0.05} max={1} step={0.01} onChange={(v) => patch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
-              <Slider label="Hardness" value={s.hardness} min={0} max={1} step={0.01} onChange={(v) => patch({ hardness: v })} format={(v) => `${Math.round(v * 100)}%`} />
-              <Slider label="Softness" value={s.softness} min={0} max={1} step={0.01} onChange={(v) => patch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
-              <TexturePicker value={s.texture} onChange={(t) => patch({ texture: t })} />
+          <View pointerEvents="box-none" className="absolute inset-x-0 bottom-[104px] items-center px-3">
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} className="w-full max-w-md rounded-2xl bg-card shadow-lg" contentContainerClassName="gap-2 p-3">
+              <ToolSettingsPanel tool={tool} settings={s} onChange={patch} palette={palette} />
+              <View className="h-px bg-border" />
               <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
               {simAllowed() && (
                 <View className="mt-0.5 flex-row items-center gap-1.5">
@@ -349,38 +360,44 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                   </Pressable>
                 </View>
               )}
-            </View>
+            </ScrollView>
           </View>
         )}
 
-        {/* Floating tool dock — icon tools (w/ color dot) · undo/redo · clear. Tap the active tool to open settings. */}
-        <View pointerEvents="box-none" className="absolute inset-x-0 bottom-3 items-center px-2">
-          <View className="flex-row items-center gap-1 rounded-[26px] bg-card p-1.5 shadow-lg">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-0.5">
+        {/* Floating tool dock — icon tools (w/ color dot) · undo/redo · clear. Tap the active tool to open
+            settings. The outer ScrollView's content centers the pill when it fits (content-width, NOT
+            full-width) and lets it scroll horizontally only if it ever exceeds the screen. */}
+        <View pointerEvents="box-none" className="absolute inset-x-0 bottom-3 px-2">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <View className="flex-row items-center gap-1 rounded-[28px] bg-card p-2 shadow-lg">
               {allowedTools.map((id) => {
                 const Icon = TOOL_ICON[id]
                 const active = tool === id
                 const showDot = id !== 'eraser' && id !== 'smudge'
                 return (
-                  <Pressable key={id} onPress={() => { if (active) setSettingsOpen((o) => !o); else { setTool(id); setSettingsOpen(true) } }} className={cn('h-12 w-12 items-center justify-center rounded-2xl', active && 'bg-primary')}>
-                    <Icon size={24} color={active ? 'white' : FG} />
-                    {showDot && <View className="absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full border border-white" style={{ backgroundColor: settingsMap[id].color }} />}
+                  <Pressable key={id} onPress={() => { if (active) setSettingsOpen((o) => !o); else { setTool(id); setSettingsOpen(true) } }} className={cn('h-14 w-14 items-center justify-center rounded-2xl', active && 'bg-primary')}>
+                    <Icon size={28} color={active ? 'white' : FG} />
+                    {showDot && <View className="absolute bottom-2 right-2 h-3 w-3 rounded-full border border-white" style={{ backgroundColor: settingsMap[id].color }} />}
                   </Pressable>
                 )
               })}
-            </ScrollView>
-            <View className="mx-0.5 h-7 w-px bg-border" />
-            <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} className={cn('h-11 w-11 items-center justify-center rounded-2xl', !hist.canUndo && 'opacity-40')}>
-              <UndoIcon size={20} color={FG} />
-            </Pressable>
-            <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} className={cn('h-11 w-11 items-center justify-center rounded-2xl', !hist.canRedo && 'opacity-40')}>
-              <RedoIcon size={20} color={FG} />
-            </Pressable>
-            <View className="mx-0.5 h-7 w-px bg-border" />
-            <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} className="h-11 w-11 items-center justify-center rounded-2xl">
-              <TrashIcon size={20} color={DESTRUCTIVE} />
-            </Pressable>
-          </View>
+              <View className="mx-0.5 h-8 w-px bg-border" />
+              <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} className={cn('h-12 w-12 items-center justify-center rounded-2xl', !hist.canUndo && 'opacity-40')}>
+                <UndoIcon size={23} color={FG} />
+              </Pressable>
+              <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} className={cn('h-12 w-12 items-center justify-center rounded-2xl', !hist.canRedo && 'opacity-40')}>
+                <RedoIcon size={23} color={FG} />
+              </Pressable>
+              <View className="mx-0.5 h-8 w-px bg-border" />
+              <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} className="h-12 w-12 items-center justify-center rounded-2xl">
+                <TrashIcon size={23} color={DESTRUCTIVE} />
+              </Pressable>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </View>
