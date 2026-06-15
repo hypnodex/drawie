@@ -359,6 +359,7 @@ function TileOverlayCell({ tile, user }: { tile: Tile; user: User | null }) {
           side="top"
           sideOffset={8}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
           onMouseEnter={onEnter}
           onMouseLeave={onLeave}
           className="w-56 max-w-none p-0 border-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] shadow-[var(--shadow-overlay)] outline-none"

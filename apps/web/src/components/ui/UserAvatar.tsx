@@ -82,6 +82,7 @@ export function UserAvatar({ user, size = 28, ringClassName = '', hoverCard = tr
         side="top"
         sideOffset={10}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
         // Own the card box: drop PopoverContent's default padding/width/radius and

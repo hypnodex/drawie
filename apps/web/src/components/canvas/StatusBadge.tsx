@@ -10,9 +10,11 @@ const LABEL: Record<CanvasStatus, string> = {
 }
 
 // (Phase 2: HeroUI Chip color/variant → shadcn Badge variant + token classes.)
+// completed = brand accent green ("done"); almost-complete = warning amber ("nearly there")
+// so the two end-states stay visually distinct, not just by label text.
 const VARIANT: Record<CanvasStatus, { variant: 'default' | 'secondary'; className?: string }> = {
   'open':            { variant: 'secondary' },
-  'almost-complete': { variant: 'default' },
+  'almost-complete': { variant: 'default', className: 'bg-[var(--warning)] text-[var(--warning-foreground)] border-transparent' },
   'completed':       { variant: 'default' },
   'locked':          { variant: 'secondary' },
 }
