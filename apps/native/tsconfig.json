@@ -28,7 +28,8 @@
   "include": [
     "src",
     "index.ts",
-    "app.config.ts"
+    "app.config.ts",
+    "nativewind-env.d.ts"
   ],
   "extends": "expo/tsconfig.base"
 }

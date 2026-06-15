@@ -3,6 +3,7 @@
 // npm workspace install (to keep RN deps away from the verified web build), so Metro
 // must be told where the shared source + their node_modules live.
 const { getDefaultConfig } = require('expo/metro-config')
+const { withNativeWind } = require('nativewind/metro')
 const path = require('node:path')
 
 const projectRoot = __dirname
@@ -34,4 +35,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform)
 }
 
-module.exports = config
+// NativeWind v4 stable: wrap the (fully-configured) metro config last — preserves the
+// custom watchFolders / nodeModulesPaths / WEB_ONLY resolver above. `input` points at the
+// CSS entry so NativeWind's Tailwind CLI compiles it (this is what generates utilities in v4).
+module.exports = withNativeWind(config, { input: './global.css' })
