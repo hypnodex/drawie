@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '../../state/AuthContext'
 import { timeAgo } from '@drawie/data'
@@ -13,7 +12,7 @@ import { Eyebrow } from './Eyebrow'
  * Notification bell. (Phase 2: HeroUI Button + Popover + Badge.Anchor + ScrollShadow
  * → shadcn Popover + ghost icon Button + an absolutely-anchored Badge + ScrollArea.)
  * The unread-count badge is rendered inside the trigger button, absolutely positioned
- * top-right (shadcn Badge has no `.Anchor`); the popover list scrolls inside a ScrollArea.
+ * top-right (shadcn Badge has no `.Anchor`); the popover list scrolls in a capped overflow div.
  */
 export function NotificationBell() {
   const {
@@ -78,7 +77,7 @@ export function NotificationBell() {
               </p>
             </div>
           ) : (
-            <ScrollArea className="max-h-[60vh]">
+            <div className="max-h-[60vh] overflow-y-auto drawie-hide-scrollbar">
               <ul className="w-full">
                 {notifications.map((n) => (
                   <li key={n.id}>
@@ -121,7 +120,7 @@ export function NotificationBell() {
                   </li>
                 ))}
               </ul>
-            </ScrollArea>
+            </div>
           )}
         </div>
       </PopoverContent>

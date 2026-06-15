@@ -121,7 +121,7 @@ export function ExportDialog({ isOpen, onClose, canvas }: Props) {
           )}
         </div>
 
-        <DialogFooter className="flex items-center justify-between gap-3 sm:justify-between">
+        <DialogFooter className="flex-row items-center justify-between gap-3 sm:justify-between">
           <Button variant="ghost" onClick={close}>Cancel</Button>
           {exportState !== 'done' && (
             <Button onClick={handleExport} disabled={exportState === 'preparing'}>

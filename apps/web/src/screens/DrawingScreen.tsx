@@ -451,8 +451,8 @@ export default function DrawingScreen({
       />
 
       {/* Leave dialog */}
-      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={leaveOpen} onOpenChange={(o) => { if (!o && moderation.isChecking) return; setLeaveOpen(o) }}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
           <DialogHeader className="mb-2">
             <Eyebrow variant="dot">Leaving</Eyebrow>
             <DialogTitle className="mt-1 text-xl font-extrabold tracking-tight">Save or discard?</DialogTitle>
@@ -472,8 +472,8 @@ export default function DrawingScreen({
       </Dialog>
 
       {/* Save confirm dialog */}
-      <Dialog open={saveConfirmOpen} onOpenChange={setSaveConfirmOpen}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={saveConfirmOpen} onOpenChange={(o) => { if (!o && moderation.isChecking) return; setSaveConfirmOpen(o) }}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
           <DialogHeader className="mb-2">
             <Eyebrow variant="dot">Save draft</Eyebrow>
             <DialogTitle className="mt-1 text-xl font-extrabold tracking-tight">Save current progress?</DialogTitle>

@@ -525,7 +525,7 @@ function OverlaysSection() {
 function ScrollShadowSection() {
   return (
     <SectionBlock id="scroll-shadow" title="Scroll area" description="shadcn ScrollArea — used in the notification panel for long lists.">
-      <ScrollArea className="max-h-40">
+      <ScrollArea className="h-40">
         <div className="flex flex-col gap-2 py-1">
           {Array.from({ length: 12 }, (_, i) => (
             <div key={i} className="px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-sm text-[var(--muted)]">
