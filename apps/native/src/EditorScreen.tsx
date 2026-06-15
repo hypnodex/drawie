@@ -15,9 +15,15 @@ import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
 import { Slider } from './ui/Slider'
 import { ColorPalette } from './ui/ColorPalette'
 import { TexturePicker } from './ui/TexturePicker'
-import { LayersPanel, type LayerMeta } from './ui/LayersPanel'
+import type { LayerMeta } from './ui/LayersPanel'
 import { Text } from './components/ui/text'
 import { cn } from './lib/cn'
+import { LayersCard } from './components/editor/LayersCard'
+import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon } from './components/icons'
+
+// Icon colors (RN SVG needs concrete colors, not className tokens).
+const FG = 'hsl(142, 12%, 12%)'
+const DESTRUCTIVE = 'hsl(350, 80%, 55%)'
 
 const ARTBOARD = 2000 // must match DrawCanvas — the per-layer surface size we composite
 
@@ -129,11 +135,11 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     setLayers([...layers, { id, visible: true, opacity: 1 }])
     setActiveId(id)
   }
-  const deleteLayer = () => {
+  const deleteLayer = (id: number = activeId) => {
     if (layers.length <= 1) return
-    const next = layers.filter((L) => L.id !== activeId)
+    const next = layers.filter((L) => L.id !== id)
     setLayers(next)
-    setActiveId(next[next.length - 1].id)
+    if (id === activeId) setActiveId(next[next.length - 1].id)
   }
   const toggleVisible = (id: number) =>
     setLayers((ls) => ls.map((L) => (L.id === id ? { ...L, visible: !L.visible } : L)))
@@ -234,21 +240,29 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between border-b border-border px-3.5 pt-3.5 pb-1.5">
-        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-[60px]">
-          <Text className="text-[15px] font-semibold text-primary">‹ Tiles</Text>
+      <View className="flex-row items-center justify-between border-b border-border px-3 pt-3 pb-2">
+        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-24">
+          <Text className="text-[15px] font-semibold text-foreground">← Leave</Text>
         </Pressable>
-        <Text className="text-sm font-semibold text-muted-foreground">{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
+        <View className="flex-1 items-center px-2">
+          {canvas?.styleGuidance ? (
+            <>
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Style rules</Text>
+              <Text numberOfLines={1} className="text-xs italic text-foreground">“{canvas.styleGuidance}”</Text>
+            </>
+          ) : (
+            <Text className="text-sm font-semibold text-muted-foreground">{tile ? `Tile · r${tile.row + 1} c${tile.col + 1}` : 'Draw'}</Text>
+          )}
+        </View>
         {canSubmit ? (
-          <Pressable onPress={submit} disabled={submitting} hitSlop={8} className={cn('h-8 min-w-[60px] items-center justify-center rounded-2xl bg-primary px-3.5', submitting && 'opacity-50')}>
-            {submitting ? <ActivityIndicator size="small" color="white" /> : <Text className="text-[13px] font-bold text-primary-foreground">Submit</Text>}
+          <Pressable onPress={submit} disabled={submitting} hitSlop={8} className={cn('h-9 w-24 flex-row items-center justify-center gap-1.5 rounded-full bg-primary', submitting && 'opacity-50')}>
+            {submitting ? <ActivityIndicator size="small" color="white" /> : <><SendIcon size={15} color="white" /><Text className="text-[13px] font-bold text-primary-foreground">Submit</Text></>}
           </Pressable>
         ) : (
-          <View className="w-[60px]" />
+          <View className="w-24" />
         )}
       </View>
       {!!submitError && <Text numberOfLines={2} className="px-3 py-1 text-center text-xs text-destructive">{submitError}</Text>}
-      {!!canvas?.styleGuidance && <Text numberOfLines={2} className="px-4 pt-1 text-center text-xs italic text-muted-foreground">“{canvas.styleGuidance}”</Text>}
       <View className="flex-1 bg-muted" onLayout={onWrapLayout}>
         {inner > 0 && (
           <View style={{ position: 'absolute', left: stageLeft, top: stageTop, width: S, height: S }}>
@@ -302,62 +316,72 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
             </View>
           </View>
         )}
-      </View>
-
-      {/* ── Brush-settings sheet — toggled by the dock's "Brush" button; hidden by default so the
-            canvas gets full space (web-style: settings live in a popover, not always on screen). ── */}
-      {settingsOpen && (
-        <View className="gap-2 border-t border-border bg-card px-3 pt-3 pb-2 shadow-lg">
-          <ColorPalette color={s.color} onChange={(c) => patch({ color: c })} palette={palette} />
-          <Slider label="Size" value={s.size} min={1} max={120} onChange={(v) => patch({ size: v })} />
-          <Slider label="Opacity" value={s.opacity} min={0.05} max={1} step={0.01} onChange={(v) => patch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
-          <Slider label="Hardness" value={s.hardness} min={0} max={1} step={0.01} onChange={(v) => patch({ hardness: v })} format={(v) => `${Math.round(v * 100)}%`} />
-          <Slider label="Softness" value={s.softness} min={0} max={1} step={0.01} onChange={(v) => patch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
-          <TexturePicker value={s.texture} onChange={(t) => patch({ texture: t })} />
-          <LayersPanel layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} />
-          <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
-          {simAllowed() && (
-            <View className="mt-0.5 flex-row items-center gap-1.5">
-              <Text className="text-[10px] font-bold uppercase text-muted-foreground">DEV</Text>
-              <Pressable onPress={() => applySim({ enabled: !simCfg.enabled })} className={cn('rounded-lg px-2 py-1', simCfg.enabled ? 'bg-primary' : 'bg-secondary')}>
-                <Text className={cn('text-[11px] font-semibold', simCfg.enabled ? 'text-primary-foreground' : 'text-secondary-foreground')}>{simCfg.enabled ? 'sim on' : 'sim off'}</Text>
-              </Pressable>
-              <Pressable onPress={() => applySim({ mode: simCfg.mode === 'cursor' ? 'painting' : 'cursor' })} className="rounded-lg bg-secondary px-2 py-1">
-                <Text className="text-[11px] font-semibold text-secondary-foreground">{simCfg.mode}</Text>
-              </Pressable>
-              <Pressable onPress={() => applySim({ count: simCfg.count >= 8 ? 1 : simCfg.count + 1 })} className="rounded-lg bg-secondary px-2 py-1">
-                <Text className="text-[11px] font-semibold text-secondary-foreground">n {simCfg.count}</Text>
-              </Pressable>
-              <Pressable onPress={() => restartSim()} className="rounded-lg bg-secondary px-2 py-1">
-                <Text className="text-[11px] font-semibold text-secondary-foreground">redraw</Text>
-              </Pressable>
-            </View>
-          )}
+        {/* ── Floating chrome over the canvas (web-style): Layers card · settings popover · tool dock ── */}
+        <View className="absolute right-3 top-3">
+          <LayersCard layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} />
         </View>
-      )}
 
-      {/* ── Tool dock — always visible, compact: undo/redo · tools (scroll) · Brush(settings) · Clear ── */}
-      <View className="flex-row items-center gap-1.5 border-t border-border bg-muted px-2 pt-2 pb-7">
-        <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} className={cn('h-9 w-9 items-center justify-center rounded-full bg-secondary', !hist.canUndo && 'opacity-[0.35]')}>
-          <Text className="text-lg font-bold text-foreground">↶</Text>
-        </Pressable>
-        <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} className={cn('h-9 w-9 items-center justify-center rounded-full bg-secondary', !hist.canRedo && 'opacity-[0.35]')}>
-          <Text className="text-lg font-bold text-foreground">↷</Text>
-        </Pressable>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerClassName="items-center gap-1.5 px-1">
-          {allowedTools.map((id) => (
-            <Pressable key={id} onPress={() => setTool(id)} className={cn('rounded-full px-3.5 py-2', tool === id ? 'bg-primary' : 'bg-secondary')}>
-              <Text className={cn('text-[13px]', tool === id ? 'font-semibold text-primary-foreground' : 'text-secondary-foreground')}>{id}</Text>
+        {/* Settings popover — opens above the dock when you tap the active tool (web pattern). */}
+        {settingsOpen && (
+          <View pointerEvents="box-none" className="absolute inset-x-0 bottom-[88px] items-center px-3">
+            <View className="w-full max-w-md gap-2 rounded-2xl bg-card p-3 shadow-lg">
+              <ColorPalette color={s.color} onChange={(c) => patch({ color: c })} palette={palette} />
+              <Slider label="Size" value={s.size} min={1} max={120} onChange={(v) => patch({ size: v })} />
+              <Slider label="Opacity" value={s.opacity} min={0.05} max={1} step={0.01} onChange={(v) => patch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
+              <Slider label="Hardness" value={s.hardness} min={0} max={1} step={0.01} onChange={(v) => patch({ hardness: v })} format={(v) => `${Math.round(v * 100)}%`} />
+              <Slider label="Softness" value={s.softness} min={0} max={1} step={0.01} onChange={(v) => patch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
+              <TexturePicker value={s.texture} onChange={(t) => patch({ texture: t })} />
+              <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
+              {simAllowed() && (
+                <View className="mt-0.5 flex-row items-center gap-1.5">
+                  <Text className="text-[10px] font-bold uppercase text-muted-foreground">DEV</Text>
+                  <Pressable onPress={() => applySim({ enabled: !simCfg.enabled })} className={cn('rounded-lg px-2 py-1', simCfg.enabled ? 'bg-primary' : 'bg-secondary')}>
+                    <Text className={cn('text-[11px] font-semibold', simCfg.enabled ? 'text-primary-foreground' : 'text-secondary-foreground')}>{simCfg.enabled ? 'sim on' : 'sim off'}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => applySim({ mode: simCfg.mode === 'cursor' ? 'painting' : 'cursor' })} className="rounded-lg bg-secondary px-2 py-1">
+                    <Text className="text-[11px] font-semibold text-secondary-foreground">{simCfg.mode}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => applySim({ count: simCfg.count >= 8 ? 1 : simCfg.count + 1 })} className="rounded-lg bg-secondary px-2 py-1">
+                    <Text className="text-[11px] font-semibold text-secondary-foreground">n {simCfg.count}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => restartSim()} className="rounded-lg bg-secondary px-2 py-1">
+                    <Text className="text-[11px] font-semibold text-secondary-foreground">redraw</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Floating tool dock — icon tools (w/ color dot) · undo/redo · clear. Tap the active tool to open settings. */}
+        <View pointerEvents="box-none" className="absolute inset-x-0 bottom-3 items-center px-2">
+          <View className="flex-row items-center gap-1 rounded-[26px] bg-card p-1.5 shadow-lg">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-0.5">
+              {allowedTools.map((id) => {
+                const Icon = TOOL_ICON[id]
+                const active = tool === id
+                const showDot = id !== 'eraser' && id !== 'smudge'
+                return (
+                  <Pressable key={id} onPress={() => { if (active) setSettingsOpen((o) => !o); else { setTool(id); setSettingsOpen(true) } }} className={cn('h-12 w-12 items-center justify-center rounded-2xl', active && 'bg-primary')}>
+                    <Icon size={24} color={active ? 'white' : FG} />
+                    {showDot && <View className="absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full border border-white" style={{ backgroundColor: settingsMap[id].color }} />}
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+            <View className="mx-0.5 h-7 w-px bg-border" />
+            <Pressable onPress={() => { ref(activeId)?.undo(); live.broadcaster?.undo() }} disabled={!hist.canUndo} className={cn('h-11 w-11 items-center justify-center rounded-2xl', !hist.canUndo && 'opacity-40')}>
+              <UndoIcon size={20} color={FG} />
             </Pressable>
-          ))}
-        </ScrollView>
-        <Pressable onPress={() => setSettingsOpen((o) => !o)} className={cn('h-9 flex-row items-center gap-1.5 rounded-full px-3', settingsOpen ? 'bg-primary' : 'bg-secondary')}>
-          <View className="h-3.5 w-3.5 rounded-full border border-black/10" style={{ backgroundColor: s.color }} />
-          <Text className={cn('text-[13px] font-semibold', settingsOpen ? 'text-primary-foreground' : 'text-secondary-foreground')}>Brush</Text>
-        </Pressable>
-        <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} className="h-9 items-center justify-center rounded-full bg-destructive px-3.5">
-          <Text className="text-[13px] font-semibold text-destructive-foreground">Clear</Text>
-        </Pressable>
+            <Pressable onPress={() => { ref(activeId)?.redo(); live.broadcaster?.redo() }} disabled={!hist.canRedo} className={cn('h-11 w-11 items-center justify-center rounded-2xl', !hist.canRedo && 'opacity-40')}>
+              <RedoIcon size={20} color={FG} />
+            </Pressable>
+            <View className="mx-0.5 h-7 w-px bg-border" />
+            <Pressable onPress={() => { ref(activeId)?.clear(); live.broadcaster?.clearStrokes() }} className="h-11 w-11 items-center justify-center rounded-2xl">
+              <TrashIcon size={20} color={DESTRUCTIVE} />
+            </Pressable>
+          </View>
+        </View>
       </View>
     </View>
   )
