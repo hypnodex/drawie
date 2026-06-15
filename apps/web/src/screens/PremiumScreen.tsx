@@ -129,7 +129,7 @@ export default function PremiumScreen() {
             <div className="mt-8 flex flex-wrap items-center gap-4">
               {isPremium ? (
                 <>
-                  <Alert className="border-[var(--success)]/30 bg-[color-mix(in_oklab,var(--success)_10%,transparent)] flex-none sm:max-w-sm">
+                  <Alert variant="success" className="flex-none sm:max-w-sm">
                     <AlertTitle>You're a Premium member</AlertTitle>
                   </Alert>
                   <Button variant="secondary" size="lg" onClick={() => setIsPremium(false)}>
@@ -327,7 +327,7 @@ function ProPlanCard({
       <div className="px-6 pb-6 pt-4">
         {isPremium ? (
           <>
-            <Alert className="border-[var(--success)]/30 bg-[color-mix(in_oklab,var(--success)_10%,transparent)] mb-3">
+            <Alert variant="success" className="mb-3">
               <AlertTitle>You're on Pro</AlertTitle>
             </Alert>
             <Button variant="secondary" className="w-full" onClick={onDisable}>

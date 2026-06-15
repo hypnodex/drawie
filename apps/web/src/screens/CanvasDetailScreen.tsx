@@ -273,7 +273,7 @@ export default function CanvasDetailScreen() {
           <div className="flex flex-col gap-2.5">
             {!isCompleted ? (
               userContributed ? (
-                <Alert className="border-[var(--success)]/30 bg-[color-mix(in_oklab,var(--success)_10%,transparent)]">
+                <Alert variant="success">
                   <AlertTitle className="font-mono text-[10px] font-bold">
                     Your tile is in
                   </AlertTitle>
@@ -316,7 +316,7 @@ export default function CanvasDetailScreen() {
               {userSaved ? '★ Saved' : '☆ Save canvas'}
             </Button>
             {joinError && (
-              <Alert className="border-[var(--warning)]/30 bg-[color-mix(in_oklab,var(--warning)_10%,transparent)]">
+              <Alert variant="warning">
                 <AlertDescription className="text-sm leading-snug">{joinError}</AlertDescription>
               </Alert>
             )}

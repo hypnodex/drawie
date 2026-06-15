@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { initSupabase, setEnforceOneTilePerUser } from '@drawie/data'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import './index.css'
 import { App } from './App'
 
@@ -21,7 +22,9 @@ setEnforceOneTilePerUser(import.meta.env.VITE_ENFORCE_ONE_TILE_PER_USER !== 'fal
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <TooltipProvider delayDuration={0}>
+        <App />
+      </TooltipProvider>
     </BrowserRouter>
   </StrictMode>,
 )

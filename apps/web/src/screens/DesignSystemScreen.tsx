@@ -359,19 +359,12 @@ function FeedbackSection() {
   return (
     <SectionBlock id="feedback" title="Feedback" description="Alert statuses and Spinner sizes.">
       <div className="flex flex-col gap-4">
-        {(['success','warning','danger'] as const).map((status) => {
-          const tint = status === 'success'
-            ? 'border-[var(--success)]/30 bg-[color-mix(in_oklab,var(--success)_10%,transparent)]'
-            : status === 'warning'
-              ? 'border-[var(--warning)]/30 bg-[color-mix(in_oklab,var(--warning)_10%,transparent)]'
-              : ''
-          return (
-            <Alert key={status} variant={status === 'danger' ? 'destructive' : 'default'} className={tint}>
-              <AlertTitle className="capitalize">{status}</AlertTitle>
-              <AlertDescription>This is a {status} alert message with a description.</AlertDescription>
-            </Alert>
-          )
-        })}
+        {(['success','warning','danger'] as const).map((status) => (
+          <Alert key={status} variant={status === 'danger' ? 'destructive' : status}>
+            <AlertTitle className="capitalize">{status}</AlertTitle>
+            <AlertDescription>This is a {status} alert message with a description.</AlertDescription>
+          </Alert>
+        ))}
 
         <Separator />
 

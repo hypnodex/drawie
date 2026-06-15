@@ -21,13 +21,10 @@ function TooltipProvider({
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  // Self-provide so every <Tooltip> works without a root <TooltipProvider>
-  // (matches current upstream shadcn).
-  return (
-    <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
-  )
+  // A single <TooltipProvider> is mounted once at the app root (main.tsx) so all
+  // tooltips share one delay-timer group (skip-delay on adjacent hovers) instead
+  // of each <Tooltip> instantiating its own provider.
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
 function TooltipTrigger({
