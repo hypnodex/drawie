@@ -4,16 +4,27 @@
 
 /* shadcn-convention design tokens — HSL channels (H S% L%), unwrapped so they compose
  * with `hsl(var(--token) / <alpha>)` in tailwind.config.js. One token source (Style
- * Dictionary) will emit these :root vars for native AND the web CSS vars, so the same
- * `bg-primary` / `text-foreground` utilities map cleanly across web + native. */
+ * Dictionary, later) will emit these :root vars for native AND the web CSS vars, so the
+ * same `bg-primary` / `text-foreground` utilities mean the same thing across web + native.
+ * Brand hue ≈ 142 (green) to mirror the web accent. */
 :root {
   --background: 0 0% 96%;
   --foreground: 142 12% 12%;
   --card: 0 0% 100%;
   --card-foreground: 142 12% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 142 12% 12%;
   --primary: 142 71% 45%;
   --primary-foreground: 0 0% 100%;
+  --secondary: 142 10% 94%;
+  --secondary-foreground: 142 12% 14%;
   --muted: 142 10% 92%;
   --muted-foreground: 142 6% 40%;
+  --accent: 142 30% 90%;
+  --accent-foreground: 142 12% 14%;
+  --destructive: 350 80% 55%;
+  --destructive-foreground: 0 0% 100%;
   --border: 142 10% 88%;
+  --input: 142 10% 88%;
+  --ring: 142 71% 45%;
 }

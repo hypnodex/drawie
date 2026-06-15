@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { StyleSheet, View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from 'react-native'
+import { View, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from 'react-native'
 import { supabase } from '@drawie/data'
+import { Text } from '../components/ui/text'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 
 /** drawie:// deep link the OAuth provider redirects back to; App.tsx exchanges the ?code for a session. */
 const OAUTH_REDIRECT = 'drawie://auth-callback'
@@ -9,6 +12,10 @@ const OAUTH_REDIRECT = 'drawie://auth-callback'
  * Email/password + Google OAuth + guest sign-in for the native app. Google uses the PKCE deep-link
  * flow: signInWithOAuth(skipBrowserRedirect) → open the provider URL in the system browser → it
  * redirects to OAUTH_REDIRECT, which App.tsx catches and exchanges for a session.
+ *
+ * Phase 3 (native shadcn): bespoke StyleSheet → NativeWind className + RN-Reusables primitives
+ * (Text/Button/Input) over the shadcn HSL tokens, matching the web LoginScreen's visual language,
+ * adapted to the tablet. Auth LOGIC is unchanged.
  */
 export function LoginScreen() {
   const [email, setEmail] = useState('')
@@ -52,63 +59,67 @@ export function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
-      <View style={styles.center}>
-        <Text style={styles.title}>Drawie</Text>
-        <Text style={styles.subtitle}>Sign in to draw on shared canvases</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="flex-1 bg-background"
+    >
+      <View className="flex-1 items-center justify-center p-6">
+        <View className="w-full max-w-md gap-3 rounded-2xl bg-secondary p-8">
+          {/* brand */}
+          <View className="mb-2 flex-row items-center justify-center gap-2">
+            <View className="flex-row items-center gap-1">
+              <View className="h-2 w-2 rounded-full bg-foreground" />
+              <View className="h-2 w-2 rounded-full bg-foreground" />
+              <View className="h-2 w-2 rounded-full bg-foreground" />
+            </View>
+            <Text className="text-base font-extrabold tracking-tight text-foreground">Drawie</Text>
+          </View>
 
-        <TextInput
-          style={styles.input} placeholder="Email" placeholderTextColor="#999"
-          autoCapitalize="none" autoCorrect={false} keyboardType="email-address" inputMode="email"
-          value={email} onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input} placeholder="Password" placeholderTextColor="#999"
-          secureTextEntry value={password} onChangeText={setPassword}
-          onSubmitEditing={signIn} returnKeyType="go"
-        />
+          <Text className="text-center text-2xl font-extrabold text-foreground">Sign in to Drawie</Text>
+          <Text className="mb-2 text-center text-sm text-muted-foreground">
+            Join a canvas, save your work, and collaborate in real time.
+          </Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+          <Input
+            placeholder="Email"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            inputMode="email"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <Input
+            placeholder="Password"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            onSubmitEditing={signIn}
+            returnKeyType="go"
+          />
 
-        <Pressable style={[styles.button, busy && styles.buttonBusy]} onPress={signIn} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
-        </Pressable>
+          {error && <Text className="text-center text-sm text-destructive">{error}</Text>}
 
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} /><Text style={styles.dividerText}>or</Text><View style={styles.divider} />
+          <Button onPress={signIn} disabled={busy} className="mt-1">
+            {busy ? <ActivityIndicator color="white" /> : <Text>Sign in</Text>}
+          </Button>
+
+          {/* divider */}
+          <View className="my-1 flex-row items-center gap-3">
+            <View className="h-px flex-1 bg-border" />
+            <Text className="text-xs uppercase tracking-wider text-muted-foreground">or</Text>
+            <View className="h-px flex-1 bg-border" />
+          </View>
+
+          <Button variant="outline" onPress={signInGoogle} disabled={busy}>
+            <Text className="text-base font-extrabold text-[#4285F4]">G</Text>
+            <Text>Continue with Google</Text>
+          </Button>
+          <Button variant="ghost" onPress={continueAsGuest} disabled={busy}>
+            <Text>Continue as guest</Text>
+          </Button>
         </View>
-        <Pressable style={styles.googleButton} onPress={signInGoogle} disabled={busy}>
-          <Text style={styles.googleG}>G</Text>
-          <Text style={styles.googleText}>Continue with Google</Text>
-        </Pressable>
-        <Pressable style={styles.guestButton} onPress={continueAsGuest} disabled={busy}>
-          <Text style={styles.guestText}>Continue as guest</Text>
-        </Pressable>
       </View>
     </KeyboardAvoidingView>
   )
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  center: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, gap: 12, maxWidth: 480, alignSelf: 'center', width: '100%' },
-  title: { fontSize: 34, fontWeight: '800', color: '#1a1a2e', textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#777', textAlign: 'center', marginBottom: 16 },
-  input: {
-    height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e6', paddingHorizontal: 14,
-    fontSize: 16, color: '#1a1a2e', backgroundColor: '#fafafc',
-  },
-  error: { color: '#ef476f', fontSize: 13, textAlign: 'center' },
-  button: { height: 48, borderRadius: 12, backgroundColor: '#7c8cff', alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  buttonBusy: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
-  divider: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#ddd' },
-  dividerText: { color: '#aaa', fontSize: 12 },
-  googleButton: { height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e6', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#fff' },
-  googleG: { fontSize: 18, fontWeight: '800', color: '#4285F4' },
-  googleText: { color: '#3c4043', fontSize: 15, fontWeight: '600' },
-  guestButton: { height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e6', alignItems: 'center', justifyContent: 'center' },
-  guestText: { color: '#555', fontSize: 15, fontWeight: '600' },
-})
-
