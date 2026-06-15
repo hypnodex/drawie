@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native'
+import { View, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native'
 import { getCanvas, getTilesForCanvas, claimTile, getHostId, supabase, type Canvas, type Tile } from '@drawie/data'
 import { useRealtimeTiles } from '../hooks/useRealtimeTiles'
 import { useRealtimeCanvas } from '../hooks/useRealtimeCanvas'
+import { Text } from '../components/ui/text'
+import { Button } from '../components/ui/button'
+import { cn } from '../lib/cn'
+
+const SPINNER = 'hsl(142, 71%, 45%)'
 
 /**
  * Canvas detail — the tile grid, LIVE. Subscribes to realtime tile + canvas changes so the grid
  * flips status as other artists claim/submit and progress ticks up without a refresh. When the
- * canvas completes, the composited mosaic (canvas.artworkUrl, public URL from composite-mosaic)
- * is revealed in place of the grid. Tap an empty tile to claim it (claim_tile RPC) and draw it.
+ * canvas completes, the composited mosaic is revealed in place of the grid. Tap an empty tile to claim it.
+ *
+ * Phase 3 (native shadcn): StyleSheet → NativeWind over the shadcn tokens (drawing engine untouched).
  */
 export function CanvasScreen({
   canvasId, onBack, onDraw, onManage,
@@ -40,8 +46,7 @@ export function CanvasScreen({
   }, [loadCanvas, loadTiles])
   useEffect(() => { void load() }, [load])
 
-  // Live: tile status changes refresh the grid; canvas row changes (progress / status / artwork_url)
-  // refresh the header + drive the reveal.
+  // Live: tile status changes refresh the grid; canvas row changes refresh the header + drive the reveal.
   useRealtimeTiles(canvasId, loadTiles)
   useRealtimeCanvas(canvasId, loadCanvas)
 
@@ -78,30 +83,34 @@ export function CanvasScreen({
   }
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.header}>
-        <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Canvases</Text></Pressable>
-        <Text style={styles.title} numberOfLines={1}>{canvas?.title ?? '…'}</Text>
+    <View className="flex-1 bg-background">
+      <View className="flex-row items-center justify-between px-4 pt-4 pb-2">
+        <Pressable onPress={onBack} hitSlop={8} className="w-20">
+          <Text className="text-[15px] font-semibold text-primary">‹ Canvases</Text>
+        </Pressable>
+        <Text numberOfLines={1} className="flex-1 text-center text-[17px] font-bold text-foreground">{canvas?.title ?? '…'}</Text>
         {isHost && onManage ? (
-          <Pressable onPress={() => onManage(canvasId)} hitSlop={8} style={styles.manage}><Text style={styles.manageText}>Manage</Text></Pressable>
+          <Pressable onPress={() => onManage(canvasId)} hitSlop={8} className="w-16 items-end">
+            <Text className="text-sm font-bold text-primary">Manage</Text>
+          </Pressable>
         ) : (
-          <View style={{ width: 64 }} />
+          <View className="w-16" />
         )}
       </View>
 
       {tiles === null && !error ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#7c8cff" /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={SPINNER} /></View>
       ) : error && !tiles ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable onPress={load} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+        <View className="flex-1 items-center justify-center gap-3 px-6">
+          <Text className="text-center text-sm text-destructive">{error}</Text>
+          <Button onPress={load}><Text>Retry</Text></Button>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          {!!error && <Text style={styles.errorInline}>{error}</Text>}
+        <ScrollView contentContainerClassName="w-full max-w-[720px] self-center p-4">
+          {!!error && <Text className="mb-2 text-center text-sm text-destructive">{error}</Text>}
 
           {canvas && (
-            <Text style={styles.progress}>
+            <Text className="mb-2.5 text-center text-[13px] font-semibold text-muted-foreground">
               {canvas.completedTiles}/{canvas.totalTiles} tiles
               {canvas.activeContributors > 0 ? ` · ${canvas.activeContributors} drawing` : ''}
             </Text>
@@ -109,37 +118,39 @@ export function CanvasScreen({
 
           {isCompleted ? (
             // ── Reveal ──────────────────────────────────────────────────────────────────
-            <View style={styles.revealWrap}>
-              <Text style={styles.revealTitle}>✨ Mosaic complete</Text>
+            <View className="items-center gap-3">
+              <Text className="mt-1 text-lg font-extrabold text-foreground">✨ Mosaic complete</Text>
               {canvas?.artworkUrl ? (
                 <Image
                   source={{ uri: canvas.artworkUrl }}
-                  style={[styles.reveal, { aspectRatio: (canvas?.gridCols ?? 1) / (canvas?.gridRows ?? 1) }]}
+                  className="w-full rounded-2xl bg-muted"
+                  style={{ aspectRatio: (canvas?.gridCols ?? 1) / (canvas?.gridRows ?? 1) }}
                   resizeMode="cover"
                 />
               ) : (
-                // The last tile flipped the canvas to completed; composite-mosaic runs async, so
-                // artwork_url lands a moment later — the canvas subscription reloads us when it does.
-                <View style={[styles.reveal, styles.revealPending]}>
-                  <ActivityIndicator color="#7c8cff" />
-                  <Text style={styles.revealHint}>Compositing the mosaic…</Text>
+                // artwork_url lands a moment after completion (composite runs async); the canvas
+                // subscription reloads us when it does.
+                <View className="aspect-square w-full items-center justify-center gap-2.5 rounded-2xl bg-muted">
+                  <ActivityIndicator color={SPINNER} />
+                  <Text className="text-[13px] text-muted-foreground">Compositing the mosaic…</Text>
                 </View>
               )}
             </View>
           ) : (
             // ── Live tile grid ──────────────────────────────────────────────────────────
             <>
-              <Text style={styles.hint}>Tap an empty tile to claim + draw it.</Text>
-              <View style={styles.grid}>
+              <Text className="mb-3 text-center text-[13px] text-muted-foreground">Tap an empty tile to claim + draw it.</Text>
+              <View className="flex-row flex-wrap">
                 {tiles!.map((t) => (
                   <Pressable
                     key={t.id}
                     onPress={() => onTile(t)}
                     disabled={t.status === 'completed' || !!claiming}
-                    style={[styles.cell, { width: `${100 / cols}%` }]}
+                    className="aspect-square p-0.5"
+                    style={{ width: `${100 / cols}%` }}
                   >
-                    <View style={[styles.cellInner, cellStyle(t.status), claiming === t.id && styles.cellClaiming]}>
-                      {claiming === t.id && <ActivityIndicator size="small" color="#fff" />}
+                    <View className={cn('flex-1 items-center justify-center rounded-md', cellClasses(t.status), claiming === t.id && 'opacity-70')}>
+                      {claiming === t.id && <ActivityIndicator size="small" color="white" />}
                     </View>
                   </Pressable>
                 ))}
@@ -152,33 +163,7 @@ export function CanvasScreen({
   )
 }
 
-const cellStyle = (s: Tile['status']) =>
-  s === 'completed' ? { backgroundColor: '#06d6a0' }
-    : s === 'in-progress' ? { backgroundColor: '#ffd166' }
-      : { backgroundColor: '#ececf2' }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  back: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 80 },
-  title: { fontSize: 17, fontWeight: '700', color: '#1a1a2e', flex: 1, textAlign: 'center' },
-  manage: { width: 64, alignItems: 'flex-end' },
-  manageText: { fontSize: 14, color: '#7c8cff', fontWeight: '700' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  error: { color: '#ef476f', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
-  errorInline: { color: '#ef476f', fontSize: 13, textAlign: 'center', marginBottom: 8 },
-  retry: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#7c8cff' },
-  retryText: { color: '#fff', fontWeight: '700' },
-  scroll: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  progress: { fontSize: 13, color: '#555', fontWeight: '600', textAlign: 'center', marginBottom: 10 },
-  hint: { fontSize: 13, color: '#888', textAlign: 'center', marginBottom: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { aspectRatio: 1, padding: 2 },
-  cellInner: { flex: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  cellClaiming: { opacity: 0.7 },
-  revealWrap: { alignItems: 'center', gap: 12 },
-  revealTitle: { fontSize: 18, fontWeight: '800', color: '#1a1a2e', marginTop: 4 },
-  reveal: { width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: '#f4f4f6' },
-  revealPending: { alignItems: 'center', justifyContent: 'center', gap: 10 },
-  revealHint: { fontSize: 13, color: '#888' },
-})
+const cellClasses = (s: Tile['status']) =>
+  s === 'completed' ? 'bg-emerald-500'
+    : s === 'in-progress' ? 'bg-amber-400'
+      : 'bg-secondary'

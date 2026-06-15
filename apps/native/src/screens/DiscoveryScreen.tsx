@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl, TextInput } from 'react-native'
+import { View, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
 import { listCanvases, type Canvas, type CanvasStatus } from '@drawie/data'
 import { CanvasCard } from '../ui/CanvasCard'
+import { Text } from '../components/ui/text'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { cn } from '../lib/cn'
+
+const SPINNER = 'hsl(142, 71%, 45%)'
 
 /**
  * Discovery — browse public canvases from the shared backend, with sort + status filters and search.
  * Sort/status changes reload immediately; search reloads on submit. Tapping a canvas opens its grid.
+ *
+ * Phase 3 (native shadcn): StyleSheet → NativeWind + RN-Reusables primitives over the shadcn tokens.
  */
 type SortKey = 'newest' | 'trending' | 'almost-complete' | 'progress-low'
 const SORTS: { k: SortKey; label: string }[] = [
@@ -54,83 +62,67 @@ export function DiscoveryScreen({
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.header}>
-        <Pressable onLongPress={onDevTools} delayLongPress={600}><Text style={styles.title}>Canvases</Text></Pressable>
-        <View style={styles.headerActions}>
-          <Pressable onPress={onCreate} hitSlop={8} style={styles.newBtn}><Text style={styles.newBtnText}>+ New</Text></Pressable>
-          <Pressable onPress={onJoin} hitSlop={8}><Text style={styles.me}>Join</Text></Pressable>
-          <Pressable onPress={onProfile} hitSlop={8}><Text style={styles.me}>Me</Text></Pressable>
+    <View className="flex-1 bg-background">
+      <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
+        <Pressable onLongPress={onDevTools} delayLongPress={600}>
+          <Text className="text-[28px] font-extrabold text-foreground">Canvases</Text>
+        </Pressable>
+        <View className="flex-row items-center gap-4">
+          <Button size="sm" onPress={onCreate} className="h-8 rounded-2xl px-3">
+            <Text className="text-[13px]">+ New</Text>
+          </Button>
+          <Pressable onPress={onJoin} hitSlop={8}><Text className="text-sm font-bold text-primary">Join</Text></Pressable>
+          <Pressable onPress={onProfile} hitSlop={8}><Text className="text-sm font-bold text-primary">Me</Text></Pressable>
         </View>
       </View>
 
-      <View style={styles.filters}>
-        <TextInput
+      <View className="gap-2 px-4 pb-1.5">
+        <Input
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={load}
           returnKeyType="search"
           placeholder="Search canvases"
-          placeholderTextColor="#bbb"
-          style={styles.search}
+          className="h-10"
         />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
-          {SORTS.map((s) => (
-            <Pressable key={s.k} onPress={() => setSort(s.k)} style={[styles.chip, sort === s.k && styles.chipOn]}>
-              <Text style={[styles.chipText, sort === s.k && styles.chipTextOn]}>{s.label}</Text>
-            </Pressable>
-          ))}
-          <View style={styles.sep} />
-          {STATUSES.map((s) => (
-            <Pressable key={s.k} onPress={() => setStatus(s.k)} style={[styles.chip, status === s.k && styles.chipDot]}>
-              <Text style={[styles.chipText, status === s.k && styles.chipTextOn]}>{s.label}</Text>
-            </Pressable>
-          ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerClassName="items-center gap-2 pr-3">
+          {SORTS.map((s) => {
+            const on = sort === s.k
+            return (
+              <Pressable key={s.k} onPress={() => setSort(s.k)} className={cn('rounded-2xl px-3 py-1.5', on ? 'bg-primary' : 'bg-secondary')}>
+                <Text className={cn('text-[13px] font-semibold', on ? 'text-primary-foreground' : 'text-secondary-foreground')}>{s.label}</Text>
+              </Pressable>
+            )
+          })}
+          <View className="mx-0.5 h-5 w-px bg-border" />
+          {STATUSES.map((s) => {
+            const on = status === s.k
+            return (
+              <Pressable key={s.k} onPress={() => setStatus(s.k)} className={cn('rounded-2xl px-3 py-1.5', on ? 'bg-foreground' : 'bg-secondary')}>
+                <Text className={cn('text-[13px] font-semibold', on ? 'text-background' : 'text-secondary-foreground')}>{s.label}</Text>
+              </Pressable>
+            )
+          })}
         </ScrollView>
       </View>
 
       {canvases === null && !error ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#7c8cff" /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={SPINNER} /></View>
       ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable onPress={load} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+        <View className="flex-1 items-center justify-center gap-3 px-6">
+          <Text className="text-center text-sm text-destructive">{error}</Text>
+          <Button onPress={load}><Text>Retry</Text></Button>
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.list}
+          contentContainerClassName="w-full max-w-[720px] gap-3 self-center p-4"
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {canvases!.length === 0 && <Text style={styles.empty}>No canvases match.</Text>}
+          {canvases!.length === 0 && <Text className="mt-10 text-center text-muted-foreground">No canvases match.</Text>}
           {canvases!.map((c) => <CanvasCard key={c.id} canvas={c} onPress={() => onOpen(c.id)} />)}
         </ScrollView>
       )}
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 28, fontWeight: '800', color: '#1a1a2e' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  newBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: '#7c8cff' },
-  newBtnText: { fontSize: 13, color: '#fff', fontWeight: '700' },
-  me: { fontSize: 14, color: '#7c8cff', fontWeight: '700' },
-  filters: { paddingHorizontal: 16, paddingBottom: 6, gap: 8 },
-  search: { borderWidth: 1, borderColor: '#e3e3e8', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9, fontSize: 15, color: '#1a1a2e', backgroundColor: '#fafafc' },
-  chips: { gap: 8, alignItems: 'center', paddingRight: 12 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: '#ececf2' },
-  chipOn: { backgroundColor: '#7c8cff' },
-  chipDot: { backgroundColor: '#1a1a2e' },
-  chipText: { fontSize: 13, color: '#444', fontWeight: '600' },
-  chipTextOn: { color: '#fff' },
-  sep: { width: 1, height: 20, backgroundColor: '#e3e3e8', marginHorizontal: 2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  error: { color: '#ef476f', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
-  retry: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#7c8cff' },
-  retryText: { color: '#fff', fontWeight: '700' },
-  empty: { color: '#999', textAlign: 'center', marginTop: 40 },
-  list: { padding: 16, gap: 12, maxWidth: 720, width: '100%', alignSelf: 'center' },
-})
