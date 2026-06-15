@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Chip, Surface } from '@heroui/react'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
+import { Surface } from '../ui/Surface'
 import { useAuth } from '../../state/AuthContext'
 import { Eyebrow } from '../ui/Eyebrow'
 import {
@@ -64,9 +66,9 @@ export function VoteCard({ canvasId }: Props) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <Eyebrow variant="dot">{VOTE_MONTH_LABEL} vote</Eyebrow>
         {isWinner && (
-          <Chip color="accent" variant="primary" size="sm" className="font-bold">
+          <Badge className="font-bold">
             <span className="mr-1" aria-hidden>🏆</span>Drawing of the Month
-          </Chip>
+          </Badge>
         )}
       </div>
 
@@ -95,12 +97,9 @@ export function VoteCard({ canvasId }: Props) {
         {isAuthed ? (
           <>
             <Button
-              variant="secondary"
-              size="md"
-              fullWidth
-              onPress={handleVote}
-              isDisabled={voting}
-              className={votedThis ? 'ring-1 ring-[var(--accent)]' : ''}
+              className={`w-full ${votedThis ? 'ring-1 ring-[var(--accent)]' : ''}`}
+              onClick={handleVote}
+              disabled={voting}
             >
               {voting
                 ? 'Saving…'
@@ -128,7 +127,7 @@ export function VoteCard({ canvasId }: Props) {
             )}
           </>
         ) : (
-          <Button variant="secondary" size="md" fullWidth onPress={() => nav('/login')}>
+          <Button className="w-full" onClick={() => nav('/login')}>
             Sign in to vote →
           </Button>
         )}

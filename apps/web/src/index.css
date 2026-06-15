@@ -104,6 +104,10 @@
   --color-border:                 var(--border);
   --color-input:                  var(--border);
   --color-ring:                   var(--focus);
+  --color-success:                var(--success);
+  --color-success-foreground:     var(--success-foreground);
+  --color-warning:                var(--warning);
+  --color-warning-foreground:     var(--warning-foreground);
 }
 
 /* ─── Body + root ─────────────────────────────────────────────────────────── */

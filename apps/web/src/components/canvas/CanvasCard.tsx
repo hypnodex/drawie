@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { buttonVariants, Chip, Surface } from '@heroui/react'
+import { buttonVariants } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Surface } from '@/components/ui/Surface'
 import type { Canvas } from '@drawie/data'
 import { MosaicPreview } from './MosaicPreview'
 import { ProgressBar } from './ProgressBar'
@@ -27,11 +29,7 @@ export const CanvasCard = memo(function CanvasCard({ canvas }: Props) {
           <MosaicPreview canvas={canvas} />
           <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
             <StatusBadge status={canvas.status} />
-            {canvas.isTrending && !isCompleted && (
-              <Chip color="accent" variant="primary" size="sm">
-                Trending
-              </Chip>
-            )}
+            {canvas.isTrending && !isCompleted && <Badge>Trending</Badge>}
           </div>
           {canvas.colorPalette && (
             <div className="absolute bottom-3 right-3">
