@@ -1,12 +1,12 @@
 /*
  * Drawie2 — global stylesheet
  *
- * Tailwind v4 + HeroUI v3 are layered together. HeroUI's :root token block
- * provides the defaults (--accent, --background, --surface*, --default, etc.);
- * we override them below with the editorial palette (hue 147.88, chroma 0.21,
- * lightness 0.77 — "cream + lime"). HeroUI components read from those vars
- * directly, so any screen using <Surface>, <Button variant="primary">, etc.
- * automatically picks up the theme.
+ * Tailwind v4 + shadcn/ui. The editorial brand primitives (--accent, --background,
+ * --surface*, --default, etc.) are defined in the :root override below (hue 147.88,
+ * chroma 0.21, lightness 0.77 — "cream + lime"); the shadcn token bridge further
+ * down maps shadcn's semantic color utilities onto them. (HeroUI was removed in
+ * Phase 2 of the design-system migration; its styles import is gone and every
+ * brand token the app reads is now defined here.)
  *
  * Note: Tailwind v4's Oxide source scanner uses git for file tracking. If
  * .git is missing, only the directory containing this CSS is scanned (i.e.
@@ -15,7 +15,6 @@
  */
 
 @import "tailwindcss";
-@import "@heroui/styles";
 @import "tw-animate-css";
 
 /* ─── Editorial palette overrides (hue 147.88, chroma 0.2124, base 0.0026) ── */
@@ -66,6 +65,10 @@
   --danger-foreground:           oklch(99.11% 0 0);
 
   --radius:                      0.5rem;
+
+  /* Overlay/hover-card shadow. Was provided by @heroui/styles (--overlay-shadow);
+   * defined here now that HeroUI is removed, so popovers/hover cards keep their lift. */
+  --shadow-overlay:              0 2px 8px 0 #0000000f, 0 -6px 12px 0 #00000008, 0 14px 28px 0 #00000014;
 }
 
 /* ─── Fonts (Figtree only, loaded via index.html <link>) ─────────────────── */
@@ -80,9 +83,9 @@
 
 /* ─── shadcn/ui token bridge ─────────────────────────────────────────────────
  * Maps shadcn's semantic color utilities (bg-primary, text-muted-foreground,
- * border-input, ring-ring, …) onto the brand primitives above WITHOUT redefining
- * the bare HeroUI vars (--accent/--muted keep their meaning), so HeroUI and shadcn
- * coexist during the screen-by-screen migration. Phase 1 infra — design-system plan.
+ * border-input, ring-ring, …) onto the brand primitives above. The bare brand
+ * vars (--accent/--muted/…) keep their meaning and are still used directly in
+ * className arbitrary values across the app. Phase 1 infra — design-system plan.
  */
 @theme inline {
   --color-background:             var(--background);
