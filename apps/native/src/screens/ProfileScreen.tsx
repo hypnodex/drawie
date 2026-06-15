@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import { View, ScrollView, ActivityIndicator } from 'react-native'
 import {
   getProfile, listCanvases, computeEntitlement, supabase, type User, type Canvas,
 } from '@drawie/data'
 import { CanvasCard } from '../ui/CanvasCard'
+import { Text } from '../components/ui/text'
+import { Button } from '../components/ui/button'
+import { ScreenHeader } from '../components/ui/screen-header'
+
+const SPINNER = 'hsl(142, 71%, 45%)' // brand primary, for the standalone RN ActivityIndicator
 
 /**
  * Profile / my-canvases — the signed-in user's stats, the canvases they've contributed to, and the
- * ones they've saved. Mirrors web UserProfileScreen: getProfile gives the id lists, then we filter
- * the public canvas list by them (private contributions aren't listed publicly, same as web).
+ * ones they've saved. Mirrors web UserProfileScreen.
+ *
+ * Phase 3 (native shadcn): StyleSheet → NativeWind + RN-Reusables primitives over the shadcn tokens.
+ * (CanvasCard keeps its own styling for now — migrated in a later component pass.)
  */
 export function ProfileScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (canvasId: string) => void }) {
   const [user, setUser] = useState<User | null | undefined>(undefined)
@@ -38,31 +45,37 @@ export function ProfileScreen({ onBack, onOpen }: { onBack: () => void; onOpen: 
   const ent = user ? computeEntitlement(user) : null
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.header}>
-        <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Canvases</Text></Pressable>
-        <Text style={styles.htitle}>Profile</Text>
-        <Pressable onPress={() => supabase.auth.signOut()} hitSlop={8}><Text style={styles.signOut}>Sign out</Text></Pressable>
-      </View>
+    <View className="flex-1 bg-background">
+      <ScreenHeader
+        title="Profile"
+        onBack={onBack}
+        backLabel="Canvases"
+        right={
+          <Button variant="ghost" size="sm" onPress={() => supabase.auth.signOut()} className="px-0">
+            <Text className="text-[13px] font-semibold text-muted-foreground">Sign out</Text>
+          </Button>
+        }
+      />
 
       {user === undefined && !error ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#7c8cff" /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={SPINNER} /></View>
       ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable onPress={load} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+        <View className="flex-1 items-center justify-center gap-3 px-6">
+          <Text className="text-center text-sm text-destructive">{error}</Text>
+          <Button onPress={load}><Text>Retry</Text></Button>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.idRow}>
-            <View style={[styles.avatar, { backgroundColor: user?.avatar || '#7c8cff' }]}>
-              <Text style={styles.avatarText}>{(user?.name?.[0] ?? '?').toUpperCase()}</Text>
+        <ScrollView contentContainerClassName="w-full max-w-[720px] gap-[18px] self-center p-4 pb-10">
+          {/* identity */}
+          <View className="flex-row items-center gap-3.5">
+            <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: user?.avatar || '#22c55e' }}>
+              <Text className="text-2xl font-extrabold text-white">{(user?.name?.[0] ?? '?').toUpperCase()}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name} numberOfLines={1}>{user?.name ?? 'You'}</Text>
-              {user?.isPremium && <Text style={styles.premium}>★ Premium</Text>}
+            <View className="flex-1">
+              <Text numberOfLines={1} className="text-xl font-extrabold text-foreground">{user?.name ?? 'You'}</Text>
+              {user?.isPremium && <Text className="mt-0.5 text-xs font-bold text-primary">★ Premium</Text>}
               {ent && (
-                <Text style={styles.ent}>
+                <Text className="mt-0.5 text-xs text-muted-foreground">
                   {ent.canCreateCanvas
                     ? 'Can found canvases ✓'
                     : `Found a canvas: ${ent.remainingTilesToFound} tile${ent.remainingTilesToFound === 1 ? '' : 's'} to go`}
@@ -71,7 +84,8 @@ export function ProfileScreen({ onBack, onOpen }: { onBack: () => void; onOpen: 
             </View>
           </View>
 
-          <View style={styles.stats}>
+          {/* stats */}
+          <View className="flex-row gap-2.5">
             <Stat n={user?.completedTilesCount ?? 0} label="tiles" />
             <Stat n={contributed.length} label="canvases" />
             <Stat n={finished} label="finished" />
@@ -79,7 +93,7 @@ export function ProfileScreen({ onBack, onOpen }: { onBack: () => void; onOpen: 
 
           <Section title="Contributed">
             {contributed.length === 0
-              ? <Text style={styles.empty}>No contributions yet — claim a tile to get started.</Text>
+              ? <Text className="text-[13px] text-muted-foreground">No contributions yet — claim a tile to get started.</Text>
               : contributed.map((c) => <CanvasCard key={c.id} canvas={c} onPress={() => onOpen(c.id)} />)}
           </Section>
 
@@ -96,43 +110,18 @@ export function ProfileScreen({ onBack, onOpen }: { onBack: () => void; onOpen: 
 
 function Stat({ n, label }: { n: number; label: string }) {
   return (
-    <View style={styles.stat}>
-      <Text style={styles.statN}>{n}</Text>
-      <Text style={styles.statL}>{label}</Text>
-    </View>
-  )
-}
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={{ gap: 12 }}>{children}</View>
+    <View className="flex-1 items-center rounded-2xl border border-border bg-muted py-3.5">
+      <Text className="text-[22px] font-extrabold text-foreground">{n}</Text>
+      <Text className="mt-0.5 text-xs text-muted-foreground">{label}</Text>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  back: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 90 },
-  htitle: { fontSize: 17, fontWeight: '700', color: '#1a1a2e' },
-  signOut: { fontSize: 13, color: '#888', fontWeight: '600', width: 90, textAlign: 'right' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  error: { color: '#ef476f', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
-  retry: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#7c8cff' },
-  retryText: { color: '#fff', fontWeight: '700' },
-  scroll: { padding: 16, gap: 18, maxWidth: 720, width: '100%', alignSelf: 'center', paddingBottom: 40 },
-  idRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  name: { fontSize: 20, fontWeight: '800', color: '#1a1a2e' },
-  premium: { fontSize: 12, color: '#f0a500', fontWeight: '700', marginTop: 2 },
-  ent: { fontSize: 12, color: '#888', marginTop: 2 },
-  stats: { flexDirection: 'row', gap: 10 },
-  stat: { flex: 1, backgroundColor: '#fafafc', borderWidth: 1, borderColor: '#ececf0', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  statN: { fontSize: 22, fontWeight: '800', color: '#1a1a2e' },
-  statL: { fontSize: 12, color: '#999', marginTop: 2 },
-  section: { gap: 10 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1a1a2e' },
-  empty: { color: '#999', fontSize: 13 },
-})
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View className="gap-2.5">
+      <Text className="text-[15px] font-bold text-foreground">{title}</Text>
+      <View className="gap-3">{children}</View>
+    </View>
+  )
+}

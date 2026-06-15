@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import { View, ScrollView, ActivityIndicator } from 'react-native'
 import { getHostId, getParticipants, kickParticipant, type PrivateParticipant } from '@drawie/data'
+import { Text } from '../components/ui/text'
+import { Button } from '../components/ui/button'
+import { ScreenHeader } from '../components/ui/screen-header'
+import { cn } from '../lib/cn'
+
+const SPINNER = 'hsl(142, 71%, 45%)'
+const DESTRUCTIVE = 'hsl(350, 80%, 55%)'
 
 /**
- * Host console for a private canvas — lists everyone holding a tile (derived from the tiles table)
- * and lets the host remove a participant (host_kick, which frees their tile). Reachable from the
- * share screen, from the canvas when you're the host, or via the drawie://host?token=… deep link.
- * Reassign (host_reassign) is deferred — it needs a target picker and is a niche op.
+ * Host console for a private canvas — lists everyone holding a tile and lets the host remove a
+ * participant (host_kick, which frees their tile). Reachable from share, from the canvas when you're
+ * the host, or via the drawie://host?token=… deep link.
+ *
+ * Phase 3 (native shadcn): StyleSheet → NativeWind + RN-Reusables primitives over the shadcn tokens.
  */
 export function HostConsoleScreen({ canvasId, onBack }: { canvasId: string; onBack: () => void }) {
   const [participants, setParticipants] = useState<PrivateParticipant[] | null>(null)
@@ -41,36 +49,45 @@ export function HostConsoleScreen({ canvasId, onBack }: { canvasId: string; onBa
   const drawing = participants?.filter((p) => !p.isHost).length ?? 0
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.header}>
-        <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Back</Text></Pressable>
-        <Text style={styles.title}>Participants</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <View className="flex-1 bg-background">
+      <ScreenHeader title="Participants" onBack={onBack} />
 
       {participants === null && !error ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#7c8cff" /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={SPINNER} /></View>
       ) : error && !participants ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable onPress={load} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+        <View className="flex-1 items-center justify-center gap-3 px-6">
+          <Text className="text-center text-sm text-destructive">{error}</Text>
+          <Button onPress={load}><Text>Retry</Text></Button>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          {!!error && <Text style={styles.errorInline}>{error}</Text>}
-          <Text style={styles.count}>{drawing} {drawing === 1 ? 'artist' : 'artists'} · {participants!.length} on canvas</Text>
-          {participants!.length === 0 && <Text style={styles.empty}>No one has joined yet. Share the guest link.</Text>}
+        <ScrollView contentContainerClassName="w-full max-w-[640px] gap-1 self-center p-4">
+          {!!error && <Text className="mb-2 text-center text-sm text-destructive">{error}</Text>}
+          <Text className="mb-2 text-[13px] font-semibold text-muted-foreground">
+            {drawing} {drawing === 1 ? 'artist' : 'artists'} · {participants!.length} on canvas
+          </Text>
+          {participants!.length === 0 && <Text className="mt-8 text-center text-muted-foreground">No one has joined yet. Share the guest link.</Text>}
           {participants!.map((p) => (
-            <View key={p.id + p.tileId} style={styles.row}>
-              <View style={[styles.dot, p.status === 'completed' ? styles.dotDone : p.status === 'in-progress' ? styles.dotActive : styles.dotIdle]} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name} numberOfLines={1}>{p.name}{p.isHost ? '  · host' : ''}</Text>
-                <Text style={styles.status}>{p.status}</Text>
+            <View key={p.id + p.tileId} className="flex-row items-center gap-3 border-b border-border py-3">
+              <View
+                className={cn(
+                  'h-2.5 w-2.5 rounded-full',
+                  p.status === 'completed' ? 'bg-emerald-500' : p.status === 'in-progress' ? 'bg-amber-400' : 'bg-muted-foreground/40',
+                )}
+              />
+              <View className="flex-1">
+                <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">{p.name}{p.isHost ? '  · host' : ''}</Text>
+                <Text className="mt-px text-xs text-muted-foreground">{p.status}</Text>
               </View>
               {!p.isHost && (
-                <Pressable onPress={() => remove(p)} disabled={!!acting} style={[styles.kick, acting === p.id && styles.kickBusy]}>
-                  {acting === p.id ? <ActivityIndicator size="small" color="#ef476f" /> : <Text style={styles.kickText}>Remove</Text>}
-                </Pressable>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onPress={() => remove(p)}
+                  disabled={!!acting}
+                  className="min-w-[76px] rounded-full border-destructive/40"
+                >
+                  {acting === p.id ? <ActivityIndicator size="small" color={DESTRUCTIVE} /> : <Text className="text-destructive">Remove</Text>}
+                </Button>
               )}
             </View>
           ))}
@@ -79,28 +96,3 @@ export function HostConsoleScreen({ canvasId, onBack }: { canvasId: string; onBa
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  back: { fontSize: 15, color: '#7c8cff', fontWeight: '600', width: 60 },
-  title: { fontSize: 17, fontWeight: '700', color: '#1a1a2e' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  error: { color: '#ef476f', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
-  errorInline: { color: '#ef476f', fontSize: 13, textAlign: 'center', marginBottom: 8 },
-  retry: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#7c8cff' },
-  retryText: { color: '#fff', fontWeight: '700' },
-  scroll: { padding: 16, gap: 4, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  count: { fontSize: 13, color: '#888', fontWeight: '600', marginBottom: 8 },
-  empty: { color: '#999', textAlign: 'center', marginTop: 30 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  dotDone: { backgroundColor: '#06d6a0' },
-  dotActive: { backgroundColor: '#ffd166' },
-  dotIdle: { backgroundColor: '#d0d0d8' },
-  name: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
-  status: { fontSize: 12, color: '#999', marginTop: 1 },
-  kick: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 14, borderWidth: 1, borderColor: '#f3c0cc', minWidth: 76, alignItems: 'center' },
-  kickBusy: { opacity: 0.6 },
-  kickText: { fontSize: 13, color: '#ef476f', fontWeight: '700' },
-})
