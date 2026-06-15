@@ -13,7 +13,7 @@ const LABEL: Record<CanvasStatus, string> = {
 const VARIANT: Record<CanvasStatus, { variant: 'default' | 'secondary'; className?: string }> = {
   'open':            { variant: 'secondary' },
   'almost-complete': { variant: 'default' },
-  'completed':       { variant: 'default', className: 'bg-success text-success-foreground border-transparent' },
+  'completed':       { variant: 'default' },
   'locked':          { variant: 'secondary' },
 }
 
