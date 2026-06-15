@@ -1,23 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Badge, Button, Popover, ScrollShadow, Separator,
-} from '@heroui/react'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import { useAuth } from '../../state/AuthContext'
 import { timeAgo } from '@drawie/data'
 import { Eyebrow } from './Eyebrow'
 
 /**
- * Notification bell — built strictly to the v3 Button + Popover + Badge specs.
- *
- *   Button: <Button isIconOnly variant="tertiary"> ... </Button>
- *     — default size "md", icon centered, no custom CSS needed.
- *
- *   Popover: <Popover>{button}<Popover.Content>...</Popover.Content></Popover>
- *     — Button goes directly inside; no Popover.Trigger wrapper.
- *
- *   Badge: <Badge.Anchor><icon /><Badge color="accent" placement="top-right">n</Badge></Badge.Anchor>
- *     — Anchor wraps the anchored content; the Badge sits beside it as a sibling.
+ * Notification bell. (Phase 2: HeroUI Button + Popover + Badge.Anchor + ScrollShadow
+ * → shadcn Popover + ghost icon Button + an absolutely-anchored Badge + ScrollArea.)
+ * The unread-count badge is rendered inside the trigger button, absolutely positioned
+ * top-right (shadcn Badge has no `.Anchor`); the popover list scrolls inside a ScrollArea.
  */
 export function NotificationBell() {
   const {
@@ -34,23 +30,23 @@ export function NotificationBell() {
     : 'Notifications'
 
   return (
-    <Popover isOpen={open} onOpenChange={setOpen}>
-      <Badge.Anchor>
-        <Button isIconOnly variant="tertiary" aria-label={ariaLabel}>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={ariaLabel} className="relative">
           <BellIcon />
+          {unreadNotificationsCount > 0 && (
+            <Badge className="absolute -top-1 -right-1 h-4 min-w-4 justify-center rounded-full px-1 text-[10px] leading-none pointer-events-none">
+              {unreadNotificationsCount > 9 ? '9+' : String(unreadNotificationsCount)}
+            </Badge>
+          )}
         </Button>
-        {unreadNotificationsCount > 0 && (
-          <Badge color="accent" size="sm" placement="top-right">
-            {unreadNotificationsCount > 9 ? '9+' : String(unreadNotificationsCount)}
-          </Badge>
-        )}
-      </Badge.Anchor>
+      </PopoverTrigger>
 
-      <Popover.Content
-        placement="bottom right"
+      <PopoverContent
+        align="end"
         className="p-0 w-80 sm:w-96 bg-[var(--surface)] rounded-[var(--radius)] shadow-lg overflow-hidden outline-none"
       >
-        <Popover.Dialog className="outline-none">
+        <div className="outline-none">
           <div className="flex items-center justify-between gap-3 px-4 py-3 bg-[var(--surface-secondary)]">
             <Eyebrow variant="dot">
               Notifications{notifications.length > 0 && (
@@ -61,7 +57,7 @@ export function NotificationBell() {
               <Button
                 size="sm"
                 variant="ghost"
-                onPress={markAllNotificationsRead}
+                onClick={markAllNotificationsRead}
                 className="text-[11px] font-bold"
               >
                 Mark all read
@@ -82,7 +78,7 @@ export function NotificationBell() {
               </p>
             </div>
           ) : (
-            <ScrollShadow className="max-h-[60vh]">
+            <ScrollArea className="max-h-[60vh]">
               <ul className="w-full">
                 {notifications.map((n) => (
                   <li key={n.id}>
@@ -125,10 +121,10 @@ export function NotificationBell() {
                   </li>
                 ))}
               </ul>
-            </ScrollShadow>
+            </ScrollArea>
           )}
-        </Popover.Dialog>
-      </Popover.Content>
+        </div>
+      </PopoverContent>
     </Popover>
   )
 }

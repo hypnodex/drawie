@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Outlet, Link as RouterLink } from 'react-router-dom'
-import { Button, Input, Separator } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
 import { Nav } from './Nav'
 import { Eyebrow } from './Eyebrow'
 
@@ -180,9 +182,7 @@ function NewsletterForm() {
       />
       <Button
         type="submit"
-        variant="primary"
-        size="md"
-        isDisabled={state === 'sending' || !email.trim()}
+        disabled={state === 'sending' || !email.trim()}
       >
         {state === 'sending' ? '…' : 'Subscribe'}
       </Button>

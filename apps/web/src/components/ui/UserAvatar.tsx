@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Chip, Popover } from '@heroui/react'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { Badge } from '@/components/ui/badge'
 import type { User } from '@drawie/data'
 import { Avatar } from './Avatar'
 
@@ -25,11 +26,13 @@ interface Props {
  * Why this is built the way it is (an earlier hover card here caused a blink
  * loop and an HMR portal crash):
  *
- *   1. The card is a portaled, NON-MODAL react-aria `Popover` (HeroUI
- *      `Popover.Content`) driven *standalone* via `triggerRef` + `isOpen` —
- *      i.e. by hover, not by press. Non-modal = no underlay covering the
- *      trigger, which is what produced the open→close→open blink before.
- *      Portaling also lets the card escape the catalog card's `overflow-hidden`.
+ *   1. The card is a portaled, NON-MODAL Radix `Popover` (Phase 2: was HeroUI
+ *      `Popover.Content`) anchored to the avatar via `PopoverAnchor` and driven
+ *      by a controlled `open` — i.e. by hover, not by press. Radix Popover is
+ *      non-modal by default (no underlay covering the trigger), which is what
+ *      avoids the open→close→open blink; `onOpenAutoFocus` is prevented so the
+ *      card doesn't steal focus on open. Portaling (PopoverContent portals) also
+ *      lets the card escape the catalog card's `overflow-hidden`.
  *
  *   2. Hover-intent timers run on BOTH the avatar and the popover, so moving
  *      the pointer across the gap between them doesn't flicker it shut.
@@ -41,7 +44,6 @@ interface Props {
  */
 export function UserAvatar({ user, size = 28, ringClassName = '', hoverCard = true }: Props) {
   const nav = useNavigate()
-  const triggerRef = useRef<HTMLButtonElement>(null)
   const { open, setOpen, onEnter, onLeave } = useHoverIntent()
 
   const goToProfile = useCallback(
@@ -58,7 +60,6 @@ export function UserAvatar({ user, size = 28, ringClassName = '', hoverCard = tr
 
   const avatar = (
     <button
-      ref={triggerRef}
       type="button"
       onClick={goToProfile}
       onMouseEnter={hoverCard ? onEnter : undefined}
@@ -75,20 +76,17 @@ export function UserAvatar({ user, size = 28, ringClassName = '', hoverCard = tr
   if (!hoverCard) return avatar
 
   return (
-    <>
-      {avatar}
-      <Popover.Content
-        triggerRef={triggerRef}
-        isOpen={open}
-        onOpenChange={setOpen}
-        isNonModal
-        placement="top"
-        offset={10}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>{avatar}</PopoverAnchor>
+      <PopoverContent
+        side="top"
+        sideOffset={10}
+        onOpenAutoFocus={(e) => e.preventDefault()}
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
-        // Utilities (utilities layer) win over the base `.popover` component
-        // styles — fix the oversized default radius and own the card box.
-        className="w-64 max-w-none p-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] text-[var(--foreground)] shadow-[var(--shadow-overlay)] outline-none"
+        // Own the card box: drop PopoverContent's default padding/width/radius and
+        // use the brand overlay tokens so it reads as the project's hover card.
+        className="w-64 max-w-none p-0 border-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] text-[var(--foreground)] shadow-[var(--shadow-overlay)] outline-none"
       >
         <div
           role="dialog"
@@ -107,8 +105,8 @@ export function UserAvatar({ user, size = 28, ringClassName = '', hoverCard = tr
             </svg>
           </button>
         </div>
-      </Popover.Content>
-    </>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -124,9 +122,7 @@ function UserHoverCard({ user }: { user: CardUser }) {
             <span className="font-extrabold text-[15px] leading-tight text-[var(--foreground)] truncate">
               {user.name}
             </span>
-            {user.isPremium && (
-              <Chip color="accent" variant="primary" size="sm">Pro</Chip>
-            )}
+            {user.isPremium && <Badge>Pro</Badge>}
           </div>
           <div className="text-xs text-[var(--muted)] truncate">@{user.id}</div>
         </div>
