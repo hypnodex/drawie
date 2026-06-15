@@ -28,11 +28,23 @@ export interface User {
 export const COMPLETED_TILES_REQUIRED_TO_FOUND = 5
 
 /**
- * Temporarily PAUSED: the "one drawing per artboard per user" rule. While this
- * is false, a user may claim/draw any number of tiles in a canvas. Set back to
- * true to re-enforce one tile per artist per canvas.
+ * The "one drawing per artboard per user" rule. Default **true** (production-safe): one tile
+ * per artist per canvas. Each app overrides at startup from its OWN env (defaulting to true):
+ *   - web    → VITE_ENFORCE_ONE_TILE_PER_USER        (apps/web/src/main.tsx)
+ *   - native → EXPO_PUBLIC_ENFORCE_ONE_TILE_PER_USER (apps/native/src/supabase.ts)
+ * Set the env to "false" in dev/test for fast single-account multi-tile testing.
+ *
+ * Injected via setEnforceOneTilePerUser() so this module stays free of `import.meta` (Metro
+ * can't parse it) — mirroring the `dataDebug` live-flag pattern in supabase.ts.
+ *
+ * NOTE: this FRONTEND flag is only the UX guard. The AUTHORITATIVE rule is the `claim_tile` RPC:
+ * the prod migration chain enforces one-tile (20260615000000_claim_tile_one_per_user); the
+ * multi-tile relaxation is test-only (supabase/dev/claim_tile_allow_multiple.dev.sql).
  */
-export const ENFORCE_ONE_TILE_PER_USER = false
+export let ENFORCE_ONE_TILE_PER_USER = true
+export function setEnforceOneTilePerUser(on: boolean): void {
+  ENFORCE_ONE_TILE_PER_USER = on
+}
 
 export interface Entitlement {
   userId: UserId

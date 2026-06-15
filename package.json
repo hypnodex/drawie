@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "//workspaces": "apps/native is intentionally EXCLUDED — it has React Native + react-native-skia deps that must not enter the web build's install. It installs independently (see apps/native/NATIVE_PLAN.md). Keep this list explicit rather than apps/* so adding the native app can't disturb the verified web workspace.",
   "workspaces": [
-    "apps/*",
+    "apps/web",
     "packages/*"
   ],
   "scripts": {

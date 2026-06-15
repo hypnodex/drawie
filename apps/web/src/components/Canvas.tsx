@@ -15,6 +15,7 @@ import {
 import { Canvas2DBackend, SkiaBackend } from '@drawie/renderer'
 import type { CanvasKit } from 'canvaskit-wasm'
 import { isSkiaEnabled, loadCanvasKit } from '../skiaRuntime'
+import { useLiveNeighbors } from '../hooks/useLiveNeighbors'
 import neighborImg1 from '../other/magnific_use-the-uploaded-image-as_DBPw5U3pcl.png'
 import neighborImg2 from '../other/magnific_use-the-uploaded-image-as_LUtXzDgswO.png'
 import neighborImg3 from '../other/magnific_use-the-uploaded-image-as_nTgxpMKYQD.png'
@@ -72,6 +73,13 @@ interface Props {
   tileCol?: number
   gridRows?: number
   gridCols?: number
+  /** Canvas id + current user id — enable the realtime live-neighbor layer (subscribe to neighbor
+   *  tile channels + broadcast this user's in-progress stroke). Omitted in the /draw sandbox. */
+  canvasId?: string
+  userId?: string
+  /** Real adjacent-tile artwork (signed URLs) keyed by NEIGHBOR_OFFSETS cell index. Shown as the
+   *  static sliver content under the live layer; empty neighbors stay blank. */
+  neighborArt?: Record<number, string>
 }
 
 const NEIGHBORS: Array<{ row: -1 | 0 | 1; col: -1 | 0 | 1; seed: number }> = [
@@ -97,7 +105,7 @@ const INTERNAL_SIZE = 2000
 const MAX_UNDO = 80
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { tool, settings, assist, layers, activeLayerId, onZoomChange, largeNeighbors = false, popoverOpen, onDismissPopover, onStrokeStart, onStrokeEnd, onShapeDetected, onHistoryChange, tileRow, tileCol, gridRows, gridCols },
+  { tool, settings, assist, layers, activeLayerId, onZoomChange, largeNeighbors = false, popoverOpen, onDismissPopover, onStrokeStart, onStrokeEnd, onShapeDetected, onHistoryChange, tileRow, tileCol, gridRows, gridCols, canvasId, userId, neighborArt },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -146,6 +154,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const currentTicks = useRef<number[]>([])
   const strokeStartT = useRef(0)
   const currentSeed = useRef(1)
+  /** Id of the stroke currently being broadcast to neighbors (null between strokes). */
+  const currentStrokeId = useRef<string | null>(null)
+
+  // Realtime live-neighbor layer: subscribe to neighbor channels + replay incoming strokes into the
+  // slivers, and broadcast this user's in-progress stroke. Inert in the /draw sandbox (no canvasId).
+  const live = useLiveNeighbors({ canvasId, tileRow, tileCol, gridRows, gridCols, userId })
 
   const engineRef = useRef<StrokeEngine | null>(null)
   const activePointerId = useRef<number | null>(null)
@@ -472,6 +486,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     engineRef.current = new StrokeEngine(backend, tool, settings, assist, currentSeed.current)
     engineRef.current.begin(ip)
     backend.flush?.()
+    // Broadcast the stroke start to neighbors (no-op in the sandbox where broadcaster is null).
+    const bc = live.broadcaster
+    if (bc) {
+      currentStrokeId.current = `${currentSeed.current.toString(36)}-${Math.round(now)}`
+      bc.begin({ strokeId: currentStrokeId.current, toolId: tool, settings, assist, seed: currentSeed.current }, currentSamples.current[0])
+    }
     if (rafRef.current == null) rafRef.current = requestAnimationFrame(tickLoop)
     onStrokeStart?.()
   }, [tool, settings, assist, toInternal, onStrokeStart, getActiveCtx, backendFor, tickLoop, popoverOpen, onDismissPopover])
@@ -487,14 +507,19 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       : [e.nativeEvent]
     const now = performance.now()
     lastInputAt.current = now
+    const added: StrokeSample[] = []
     for (const ev of events) {
       const { x, y } = toInternal(ev.clientX, ev.clientY)
       const hasPressure = (ev.pointerType !== 'mouse') && ev.pressure > 0
       const ip: InputPoint = { x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now }
       eng.extend(ip)
-      currentSamples.current.push({ x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now - strokeStartT.current })
+      const sample: StrokeSample = { x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now - strokeStartT.current }
+      currentSamples.current.push(sample)
+      added.push(sample)
     }
     strokeBackend.current?.flush?.()
+    // Forward the new samples to neighbors (coalesced inside the broadcaster).
+    if (currentStrokeId.current) live.broadcaster?.append(added)
   }, [toInternal])
 
   const finishStroke = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -518,6 +543,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
         ? runShapeAssist(layerId, eng.getRawPoints())
         : false
       if (!snapped) commitFreehandStroke(layerId)
+    }
+
+    // Close the broadcast stroke (raw stroke as drawn — soft-realtime, the submitted tile is
+    // authoritative). Always fire once per stroke, including after a mid-stroke hold-snap.
+    if (currentStrokeId.current) {
+      live.broadcaster?.end(undefined, toolRef.current === 'watercolor' ? currentTicks.current : undefined)
+      currentStrokeId.current = null
     }
 
     snappedDuringStroke.current = false
@@ -544,6 +576,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       layerRedo.current.set(layerId, r)
       layerStrokes.current.set(layerId, u.pop()!)
       rerenderLayer(layerId)
+      live.broadcaster?.undo() // mirror the undo in neighbors' live slivers
       notifyHistory()
     },
     redo: (layerId: string) => {
@@ -554,6 +587,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       layerUndo.current.set(layerId, u)
       layerStrokes.current.set(layerId, r.pop()!)
       rerenderLayer(layerId)
+      live.broadcaster?.redo()
       notifyHistory()
     },
     canUndo: (layerId: string) => (layerUndo.current.get(layerId)?.length ?? 0) > 0,
@@ -563,6 +597,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       layerStrokes.current.set(layerId, [])
       layerBackground.current.delete(layerId)
       rerenderLayer(layerId)
+      live.broadcaster?.clearStrokes()
       notifyHistory()
     },
     mergeIntoLayer: (sourceId: string, targetId: string) => {
@@ -671,6 +706,16 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           const stripH = n.row === 0 ? tilePx : sliver
           const imgOffsetLeft = n.col === -1 ? -innerOffset : 0
           const imgOffsetTop  = n.row === -1 ? -innerOffset : 0
+          // Source rect (in the 2000² live offscreen) = the inner-edge band the static <img> reveals.
+          const scale2000 = INTERNAL_SIZE / tilePx
+          const srcX = -imgOffsetLeft * scale2000
+          const srcY = -imgOffsetTop * scale2000
+          const srcW = stripW * scale2000
+          const srcH = stripH * scale2000
+          // Static sliver content: real adjacent-tile artwork when we have it; in the /draw sandbox
+          // (no grid) fall back to the placeholder; an empty real neighbour stays blank (strip-bg).
+          const realArt = neighborArt?.[i]
+          const imgSrc = realArt ?? (gridKnown ? undefined : NEIGHBOR_IMAGES[i % NEIGHBOR_IMAGES.length])
           return (
             <div
               key={i}
@@ -683,17 +728,32 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
                 background: 'var(--strip-bg)',
               }}
             >
-              <img
-                src={NEIGHBOR_IMAGES[i % NEIGHBOR_IMAGES.length]}
-                alt=""
-                draggable={false}
-                style={{
-                  position: 'absolute',
-                  left: imgOffsetLeft, top: imgOffsetTop,
-                  width: tilePx, height: tilePx,
-                  objectFit: 'cover',
-                  display: 'block',
+              {imgSrc && (
+                <img
+                  src={imgSrc}
+                  alt=""
+                  draggable={false}
+                  style={{
+                    position: 'absolute',
+                    left: imgOffsetLeft, top: imgOffsetTop,
+                    width: tilePx, height: tilePx,
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+              )}
+              {/* Live neighbor layer — ephemeral; blitted from the 2000² offscreen by useLiveNeighbors,
+                  clipped to this sliver only. Above the static <img>, never part of the document. */}
+              <canvas
+                ref={(el) => {
+                  if (el) {
+                    if (el.width !== stripW || el.height !== stripH) { el.width = stripW; el.height = stripH }
+                    live.registerSliver(i, el, { srcX, srcY, srcW, srcH, destW: stripW, destH: stripH, scale: tilePx / INTERNAL_SIZE, offX: imgOffsetLeft, offY: imgOffsetTop })
+                  } else {
+                    live.registerSliver(i, null, null)
+                  }
                 }}
+                style={{ position: 'absolute', left: 0, top: 0, width: stripW, height: stripH, pointerEvents: 'none' }}
               />
             </div>
           )

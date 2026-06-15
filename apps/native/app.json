@@ -1,0 +1,21 @@
+{
+  "//": "iOS-first (Phase 5). Deep-link scheme drawie:// is for Supabase auth redirects (see NATIVE_PLAN.md). react-native-skia needs a custom dev client (not Expo Go). New Architecture is the SDK-56 default. Screens use a simple App.tsx for now; swap in expo-router when the product screens are rebuilt.",
+  "expo": {
+    "name": "Drawie",
+    "slug": "drawie",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "drawie",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.drawie.app"
+    },
+    "android": {
+      "package": "com.drawie.app"
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
+  }
+}
