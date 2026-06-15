@@ -1,5 +1,7 @@
-import { Navigate } from 'react-router-dom'
-import { Breadcrumbs, Separator, Surface } from '@heroui/react'
+import { Navigate, Link as RouterLink } from 'react-router-dom'
+import { Surface } from '@/components/ui/Surface'
+import { Separator } from '@/components/ui/separator'
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { ButtonLink } from '../components/ui/ButtonLink'
 import { useAuth } from '../state/AuthContext'
 import { Avatar } from '../components/ui/Avatar'
@@ -24,10 +26,13 @@ export default function DashboardScreen() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-10 sm:py-14 flex flex-col gap-12">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/">Discover</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/dashboard">Dashboard</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/">Discover</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>Dashboard</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <header className="flex items-end justify-between gap-6 flex-wrap">
         <div className="flex items-center gap-4">
