@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { Button, Modal } from '@heroui/react'
+import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import type { Canvas as CanvasDomain, Tile } from '@drawie/data'
 
 interface Props {
@@ -53,14 +54,12 @@ export function MosaicReveal({
   }, [size.rows, size.cols, canvas, tiles])
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop variant="blur">
-        <Modal.Container size="lg" placement="center">
-          <Modal.Dialog className="bg-[var(--foreground)]/95 text-[var(--background)] max-w-[min(96vw,96vh)]">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="bg-[var(--foreground)]/95 text-[var(--background)] border-0 max-w-[min(96vw,96vh)] sm:max-w-[min(96vw,96vh)]">
             <div className="flex flex-col items-center gap-6">
             <header className="text-center">
               <div className="font-mono text-[10px] opacity-60">Mosaic Preview</div>
-              <h2 className="text-2xl font-bold mt-1">The full mosaic</h2>
+              <DialogTitle className="text-2xl font-bold mt-1">The full mosaic</DialogTitle>
               <p className="text-sm opacity-70 mt-2 max-w-md mx-auto">
                 Only your tile shows artwork. Other tiles are private — you can only
                 see their status (in progress or done).
@@ -95,14 +94,12 @@ export function MosaicReveal({
               )}
             </div>
 
-              <Button onPress={onClose} variant="primary" size="lg">
+              <Button onClick={onClose} size="lg">
                 Back to editing
               </Button>
             </div>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   )
 }
 
