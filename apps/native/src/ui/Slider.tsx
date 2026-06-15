@@ -42,7 +42,7 @@ export function Slider({
       <Text className="w-[52px] text-xs font-semibold text-muted-foreground">{label}</Text>
       <GestureDetector gesture={pan}>
         <View className="h-7 flex-1 justify-center" onLayout={(e) => setW(e.nativeEvent.layout.width)}>
-          <View className="absolute inset-x-0 h-1 rounded-full bg-border" />
+          <View className="absolute inset-x-0 h-1 rounded-full bg-muted-foreground/20" />
           <View className="absolute h-1 rounded-full bg-primary" style={{ width: `${frac * 100}%` }} />
           <View className="absolute -ml-2.5 h-5 w-5 rounded-full border-2 border-primary bg-card shadow" style={{ left: `${frac * 100}%` }} />
         </View>
