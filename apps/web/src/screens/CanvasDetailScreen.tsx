@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams, Link as RouterLink } from 'react-router-dom'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/Spinner'
+import { Surface } from '@/components/ui/Surface'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import {
-  Alert, Breadcrumbs, Button, Chip, Popover, Spinner, Surface,
-} from '@heroui/react'
+  Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { getCanvas } from '@drawie/data'
 import { getTilesForCanvas, claimTile } from '@drawie/data'
 import { getProfile, getProfilesByIds } from '@drawie/data'
@@ -97,10 +103,13 @@ export default function CanvasDetailScreen() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-8 sm:py-12">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/">Discover</Breadcrumbs.Item>
-        <Breadcrumbs.Item href={`/canvas/${canvas.id}`}>{canvas.title}</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/">Discover</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>{canvas.title}</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <div className="mt-6 grid lg:grid-cols-5 gap-8">
         <div className="lg:col-span-3">
@@ -199,9 +208,7 @@ export default function CanvasDetailScreen() {
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <StatusBadge status={canvas.status} />
               {canvas.isTrending && !isCompleted && (
-                <Chip color="accent" variant="primary" size="sm">
-                  Trending
-                </Chip>
+                <Badge>Trending</Badge>
               )}
             </div>
             <Heading level={1} size="lg">{canvas.title}</Heading>
@@ -266,42 +273,36 @@ export default function CanvasDetailScreen() {
           <div className="flex flex-col gap-2.5">
             {!isCompleted ? (
               userContributed ? (
-                <Alert status="success">
-                  <Alert.Content>
-                    <Alert.Title className="font-mono text-[10px] font-bold">
-                      Your tile is in
-                    </Alert.Title>
-                    <Alert.Description className="text-sm leading-snug">
-                      One artist, one tile. Come back when the mosaic is finished to see the reveal.
-                    </Alert.Description>
-                  </Alert.Content>
+                <Alert className="border-[var(--success)]/30 bg-[color-mix(in_oklab,var(--success)_10%,transparent)]">
+                  <AlertTitle className="font-mono text-[10px] font-bold">
+                    Your tile is in
+                  </AlertTitle>
+                  <AlertDescription className="text-sm leading-snug">
+                    One artist, one tile. Come back when the mosaic is finished to see the reveal.
+                  </AlertDescription>
                 </Alert>
               ) : hasFreeTiles ? (
                 <Button
-                  variant="primary"
                   size="lg"
-                  fullWidth
-                  isDisabled={joining}
-                  onPress={() => goDraw()}
+                  className="w-full"
+                  disabled={joining}
+                  onClick={() => goDraw()}
                 >
                   {joining ? 'Joining…' : <>Join canvas <span aria-hidden>→</span></>}
                 </Button>
               ) : (
-                <Alert status="default">
-                  <Alert.Content>
-                    <Alert.Title className="font-mono text-[10px] font-bold">All tiles claimed</Alert.Title>
-                    <Alert.Description className="text-sm leading-snug">
-                      Every artboard on this canvas is taken. Check back when the mosaic is finished to see the reveal.
-                    </Alert.Description>
-                  </Alert.Content>
+                <Alert>
+                  <AlertTitle className="font-mono text-[10px] font-bold">All tiles claimed</AlertTitle>
+                  <AlertDescription className="text-sm leading-snug">
+                    Every artboard on this canvas is taken. Check back when the mosaic is finished to see the reveal.
+                  </AlertDescription>
                 </Alert>
               )
             ) : (
               <Button
-                variant="primary"
                 size="lg"
-                fullWidth
-                onPress={() => setExportOpen(true)}
+                className="w-full"
+                onClick={() => setExportOpen(true)}
               >
                 Export artwork <span aria-hidden>→</span>
               </Button>
@@ -309,16 +310,14 @@ export default function CanvasDetailScreen() {
             <Button
               variant="secondary"
               size="lg"
-              fullWidth
-              onPress={() => isAuthed ? toggleSave(canvas.id) : nav('/login')}
+              className="w-full"
+              onClick={() => isAuthed ? toggleSave(canvas.id) : nav('/login')}
             >
               {userSaved ? '★ Saved' : '☆ Save canvas'}
             </Button>
             {joinError && (
-              <Alert status="warning">
-                <Alert.Content>
-                  <Alert.Description className="text-sm leading-snug">{joinError}</Alert.Description>
-                </Alert.Content>
+              <Alert className="border-[var(--warning)]/30 bg-[color-mix(in_oklab,var(--warning)_10%,transparent)]">
+                <AlertDescription className="text-sm leading-snug">{joinError}</AlertDescription>
               </Alert>
             )}
           </div>
@@ -337,37 +336,37 @@ export default function CanvasDetailScreen() {
 // ── Tile grid overlay ─────────────────────────────────────────────────────────
 
 function TileOverlayCell({ tile, user }: { tile: Tile; user: User | null }) {
-  const triggerRef = useRef<HTMLDivElement>(null)
   const { open, setOpen, onEnter, onLeave } = useHoverIntent(100, 80)
   const hasInfo = tile.status !== 'empty' && !!user
 
+  // Phase 2: HeroUI standalone Popover.Content (triggerRef + isOpen) → Radix Popover
+  // anchored to the cell via PopoverAnchor, hover-driven via controlled `open`
+  // (non-modal by default; auto-focus prevented so the hover card doesn't steal focus).
   return (
-    <>
-      <div
-        ref={triggerRef}
-        onMouseEnter={hasInfo ? onEnter : undefined}
-        onMouseLeave={hasInfo ? onLeave : undefined}
-        className={[
-          'border border-white/10 transition-colors',
-          hasInfo ? 'hover:bg-white/20 hover:border-white/30 cursor-default' : '',
-        ].join(' ')}
-      />
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div
+          onMouseEnter={hasInfo ? onEnter : undefined}
+          onMouseLeave={hasInfo ? onLeave : undefined}
+          className={[
+            'border border-white/10 transition-colors',
+            hasInfo ? 'hover:bg-white/20 hover:border-white/30 cursor-default' : '',
+          ].join(' ')}
+        />
+      </PopoverAnchor>
       {hasInfo && (
-        <Popover.Content
-          triggerRef={triggerRef}
-          isOpen={open}
-          onOpenChange={setOpen}
-          isNonModal
-          placement="top"
-          offset={8}
+        <PopoverContent
+          side="top"
+          sideOffset={8}
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onMouseEnter={onEnter}
           onMouseLeave={onLeave}
-          className="w-56 max-w-none p-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] shadow-[var(--shadow-overlay)] outline-none"
+          className="w-56 max-w-none p-0 border-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] shadow-[var(--shadow-overlay)] outline-none"
         >
           <TileCard tile={tile} user={user} />
-        </Popover.Content>
+        </PopoverContent>
       )}
-    </>
+    </Popover>
   )
 }
 
