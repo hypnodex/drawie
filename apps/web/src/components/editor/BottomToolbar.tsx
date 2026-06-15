@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Separator, Tooltip } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
 import {
   BrushIcon, PencilIcon, PenIcon, MarkerIcon, WatercolorIcon, SprayIcon, EraserIcon, SmudgeIcon,
@@ -203,16 +205,16 @@ function ToolButton({
 
   return (
     <Tooltip>
-      <Tooltip.Trigger>
+      <TooltipTrigger asChild>
         <Button
-          isIconOnly
-          onPress={onClick}
+          size="icon"
+          onClick={onClick}
           aria-label={label}
           aria-pressed={active}
-          variant={active ? 'primary' : 'secondary'}
+          variant={active ? 'default' : 'secondary'}
           className="relative w-14 h-14"
         >
-          {/* size-8 (utilities layer) overrides HeroUI's default `& svg { size-5 }` */}
+          {/* explicit size-8 wins over the Button's default `[&_svg]:size-4` */}
           <Icon className="size-8" />
           <span
             aria-hidden
@@ -228,8 +230,8 @@ function ToolButton({
             }}
           />
         </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{label}</Tooltip.Content>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   )
 }
@@ -249,10 +251,10 @@ function ToolSelectButton({
   const showsColor = meta.id !== 'eraser' && meta.id !== 'smudge' && !isTransparentDrop
   return (
     <Button
-      onPress={onClick}
+      onClick={onClick}
       aria-label={`Tool: ${meta.label}`}
       aria-pressed={active}
-      variant={active ? 'primary' : 'secondary'}
+      variant={active ? 'default' : 'secondary'}
       className="relative h-14 pl-3 pr-2.5 gap-1.5 rounded-2xl"
     >
       <Icon className="size-7" />
@@ -282,19 +284,23 @@ function ToolbarActionButton({
 }) {
   return (
     <Tooltip>
-      <Tooltip.Trigger>
+      <TooltipTrigger asChild>
         <Button
-          isIconOnly
-          onPress={onClick}
-          isDisabled={disabled}
+          size="icon"
+          onClick={onClick}
+          disabled={disabled}
           aria-label={label}
-          variant={tone === 'accent' ? 'primary' : tone === 'danger' ? 'danger-soft' : 'secondary'}
-          className="w-14 h-14"
+          variant={tone === 'accent' ? 'default' : tone === 'danger' ? 'ghost' : 'secondary'}
+          className={[
+            'w-14 h-14',
+            // danger-soft → soft (not solid) danger: ghost button tinted with the brand danger token
+            tone === 'danger' ? 'text-[var(--danger)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklab,var(--danger)_12%,transparent)]' : '',
+          ].join(' ')}
         >
           <Icon width={26} height={26} />
         </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{label}</Tooltip.Content>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   )
 }
