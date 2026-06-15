@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom'
-import { Button, Chip, Spinner, Surface } from '@heroui/react'
+import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { ButtonLink } from '../components/ui/ButtonLink'
 import { useAuth } from '../state/AuthContext'
 import { Avatar } from '../components/ui/Avatar'
@@ -9,6 +12,10 @@ import { Heading } from '../components/ui/Heading'
 /**
  * Sign-in: passwordless email magic-link, Google OAuth, or anonymous guest.
  * In dev, the seeded demo personas remain as a one-click quick switch.
+ *
+ * Phase 2 (shadcn migration): direct HeroUI usage (Button/Chip/Spinner/Surface) swapped for
+ * shadcn Button/Badge/Input + a styled panel; layout/structure preserved. The local ButtonLink/
+ * Avatar/Heading wrappers are migrated in their own pass.
  */
 export default function LoginScreen() {
   const { users, login, signInWithEmail, signInWithGoogle, signInAsGuest } = useAuth()
@@ -55,7 +62,7 @@ export default function LoginScreen() {
   return (
     <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex-1 flex items-center justify-center p-6">
-        <Surface variant="secondary" className="w-full max-w-md rounded-[var(--radius)] overflow-hidden">
+        <div className="w-full max-w-md rounded-[var(--radius)] overflow-hidden bg-secondary text-secondary-foreground">
           <div className="p-8 text-center">
             <RouterLink to="/" className="inline-flex items-center gap-2.5 mb-6" aria-label="Drawie">
               <span className="flex items-center gap-[3px]" aria-hidden>
@@ -92,16 +99,16 @@ export default function LoginScreen() {
 
                 <form onSubmit={onMagicLink} className="mt-6 flex flex-col gap-2 text-left">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">Email</label>
-                  <input
+                  <Input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="h-11 px-3 rounded-xl bg-[var(--surface)] text-sm text-[var(--foreground)] border border-[var(--separator)] outline-none focus:border-[var(--accent)]"
+                    className="h-11"
                   />
-                  <Button type="submit" variant="primary" size="md" fullWidth isDisabled={busy !== null}>
-                    {busy === 'email' ? <Spinner size="sm" /> : 'Send magic link'}
+                  <Button type="submit" className="w-full" disabled={busy !== null}>
+                    {busy === 'email' ? <Loader2 className="size-4 animate-spin" /> : 'Send magic link'}
                   </Button>
                 </form>
 
@@ -110,11 +117,11 @@ export default function LoginScreen() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Button variant="secondary" size="md" fullWidth onPress={onGoogle} isDisabled={busy !== null}>
-                    {busy === 'google' ? <Spinner size="sm" /> : 'Continue with Google'}
+                  <Button variant="secondary" className="w-full" onClick={onGoogle} disabled={busy !== null}>
+                    {busy === 'google' ? <Loader2 className="size-4 animate-spin" /> : 'Continue with Google'}
                   </Button>
-                  <Button variant="ghost" size="md" fullWidth onPress={onGuest} isDisabled={busy !== null}>
-                    {busy === 'guest' ? <Spinner size="sm" /> : 'Continue as guest'}
+                  <Button variant="ghost" className="w-full" onClick={onGuest} disabled={busy !== null}>
+                    {busy === 'guest' ? <Loader2 className="size-4 animate-spin" /> : 'Continue as guest'}
                   </Button>
                 </div>
 
@@ -142,7 +149,7 @@ export default function LoginScreen() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-extrabold text-[var(--foreground)]">{u.name}</span>
-                          {u.isPremium && <Chip color="accent" variant="primary" size="sm">Pro</Chip>}
+                          {u.isPremium && <Badge>Pro</Badge>}
                         </div>
                         <div className="font-mono text-[11px] text-[var(--muted)] mt-0.5 tabular-nums">
                           {u.completedTilesCount} completed · {u.contributedCanvasIds.length} canvases
@@ -161,7 +168,7 @@ export default function LoginScreen() {
               Continue browsing without signing in →
             </ButtonLink>
           </div>
-        </Surface>
+        </div>
       </div>
     </div>
   )
