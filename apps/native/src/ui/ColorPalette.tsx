@@ -1,4 +1,5 @@
-import { StyleSheet, View, Pressable, ScrollView } from 'react-native'
+import { View, Pressable, ScrollView } from 'react-native'
+import { cn } from '../lib/cn'
 
 /** A small fixed palette of swatches. Tapping one sets the active tool's colour. A full
  *  HSV picker can replace this later; swatches cover the common case for now. */
@@ -10,23 +11,21 @@ export const PALETTE = [
 export function ColorPalette({ color, onChange, palette }: { color: string; onChange: (c: string) => void; palette?: string[] }) {
   const swatches = palette && palette.length ? palette : PALETTE // canvas-restricted palette overrides the default
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-2.5 px-1">
       {swatches.map((c) => {
         const active = c.toLowerCase() === color.toLowerCase()
         return (
-          <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, active && styles.active]}>
+          <Pressable
+            key={c}
+            onPress={() => onChange(c)}
+            className={cn('h-[30px] w-[30px] rounded-full border border-black/10', active && 'border-[3px] border-foreground')}
+            style={{ backgroundColor: c }}
+          >
             {/* white swatch needs a visible border */}
-            {c === '#ffffff' && <View style={styles.whiteRing} />}
+            {c === '#ffffff' && <View className="absolute inset-0 rounded-full border border-[#ccc]" />}
           </Pressable>
         )
       })}
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  row: { gap: 10, paddingHorizontal: 4, alignItems: 'center' },
-  swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(0,0,0,0.12)' },
-  active: { borderWidth: 3, borderColor: '#333' },
-  whiteRing: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 15, borderWidth: 1, borderColor: '#ccc' },
-})

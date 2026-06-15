@@ -1,4 +1,6 @@
-import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native'
+import { View, Pressable, ScrollView } from 'react-native'
+import { Text } from '../components/ui/text'
+import { cn } from '../lib/cn'
 
 export type LayerMeta = { id: number; visible: boolean; opacity: number }
 
@@ -16,45 +18,34 @@ export function LayersPanel({
 }) {
   const topFirst = layers.map((_, i) => layers[layers.length - 1 - i]) // top layer leftmost
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.label}>Layers</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+    <View className="flex-row items-center gap-2 py-0.5">
+      <Text className="w-[52px] text-xs font-semibold text-muted-foreground">Layers</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-1.5 pr-2">
         {topFirst.map((L) => {
           const n = layers.indexOf(L) + 1 // 1 = bottom
           const isActive = L.id === activeId
           return (
-            <View key={L.id} style={[styles.chip, isActive && styles.chipActive]}>
-              <Pressable onPress={() => onToggleVisible(L.id)} hitSlop={6} style={styles.eye}>
-                <Text style={styles.eyeText}>{L.visible ? '◉' : '○'}</Text>
+            <View key={L.id} className={cn('flex-row items-center gap-1.5 rounded-2xl px-2.5 py-1.5', isActive ? 'bg-primary' : 'bg-secondary')}>
+              <Pressable onPress={() => onToggleVisible(L.id)} hitSlop={6} className="px-px">
+                <Text className={cn('text-[13px]', isActive ? 'text-primary-foreground' : 'text-foreground')}>{L.visible ? '◉' : '○'}</Text>
               </Pressable>
               <Pressable onPress={() => onSelect(L.id)}>
-                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>L{n}</Text>
+                <Text className={cn('text-xs font-semibold', isActive ? 'text-primary-foreground' : 'text-foreground')}>L{n}</Text>
               </Pressable>
             </View>
           )
         })}
       </ScrollView>
       {layers.length < 3 && (
-        <Pressable onPress={onAdd} style={styles.btn}><Text style={styles.btnText}>＋</Text></Pressable>
+        <Pressable onPress={onAdd} className="h-8 w-[34px] items-center justify-center rounded-[10px] bg-secondary">
+          <Text className="text-[15px] font-bold text-foreground">＋</Text>
+        </Pressable>
       )}
       {layers.length > 1 && (
-        <Pressable onPress={onDelete} style={[styles.btn, styles.del]}><Text style={styles.btnText}>🗑</Text></Pressable>
+        <Pressable onPress={onDelete} className="h-8 w-[34px] items-center justify-center rounded-[10px] bg-destructive/20">
+          <Text className="text-[15px] font-bold text-foreground">🗑</Text>
+        </Pressable>
       )}
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
-  label: { width: 52, fontSize: 12, color: '#555', fontWeight: '600' },
-  row: { gap: 6, alignItems: 'center', paddingRight: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#e6e6ea' },
-  chipActive: { backgroundColor: '#7c8cff' },
-  eye: { paddingHorizontal: 1 },
-  eyeText: { fontSize: 13, color: '#444' },
-  chipText: { fontSize: 12, color: '#333', fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
-  btn: { width: 34, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e6e6ea' },
-  del: { backgroundColor: '#f6d4dc' },
-  btnText: { fontSize: 15, color: '#333', fontWeight: '700' },
-})

@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { StyleSheet, View, Text } from 'react-native'
+import { View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
+import { Text } from '../components/ui/text'
+import { cn } from '../lib/cn'
 
 /**
  * Minimal continuous slider built on gesture-handler (no native-module dep). Tapping or
  * dragging anywhere on the track sets the value by x-position. Used for brush size/opacity
- * in the editor. Lives in its own GestureDetector subtree, independent of the canvas pan.
+ * in the editor. Phase 3 (native shadcn): StyleSheet → NativeWind over the tokens (gesture logic
+ * + dynamic fill/thumb positions unchanged).
  */
 export function Slider({
   label, value, min, max, step = 1, onChange, format,
@@ -35,30 +38,18 @@ export function Slider({
     .onUpdate((e) => runOnJS(setFromX)(e.x))
 
   return (
-    <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
+    <View className="flex-row items-center gap-2.5 py-1">
+      <Text className="w-[52px] text-xs font-semibold text-muted-foreground">{label}</Text>
       <GestureDetector gesture={pan}>
-        <View style={styles.track} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
-          <View style={styles.base} />
-          <View style={[styles.fill, { width: `${frac * 100}%` }]} />
-          <View style={[styles.thumb, { left: `${frac * 100}%` }]} />
+        <View className="h-7 flex-1 justify-center" onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+          <View className="absolute inset-x-0 h-1 rounded-full bg-border" />
+          <View className="absolute h-1 rounded-full bg-primary" style={{ width: `${frac * 100}%` }} />
+          <View className="absolute -ml-2.5 h-5 w-5 rounded-full border-2 border-primary bg-card shadow" style={{ left: `${frac * 100}%` }} />
         </View>
       </GestureDetector>
-      <Text style={styles.value}>{format ? format(value) : String(Math.round(value))}</Text>
+      <Text className={cn('w-[42px] text-right text-xs text-foreground')} style={{ fontVariant: ['tabular-nums'] }}>
+        {format ? format(value) : String(Math.round(value))}
+      </Text>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  label: { width: 52, fontSize: 12, color: '#555', fontWeight: '600' },
-  track: { flex: 1, height: 28, justifyContent: 'center' },
-  base: { position: 'absolute', left: 0, right: 0, height: 4, borderRadius: 2, backgroundColor: '#e0e0e6' },
-  fill: { position: 'absolute', height: 4, borderRadius: 2, backgroundColor: '#7c8cff' },
-  thumb: {
-    position: 'absolute', width: 20, height: 20, borderRadius: 10, marginLeft: -10,
-    backgroundColor: '#fff', borderWidth: 2, borderColor: '#7c8cff',
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2,
-  },
-  value: { width: 42, fontSize: 12, color: '#333', textAlign: 'right', fontVariant: ['tabular-nums'] },
-})
