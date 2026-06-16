@@ -282,9 +282,13 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   }
   // Palm/finger rejection: only the pen draws. Apple Pencil touches carry `stylusData`;
   // finger and palm touches don't, so we ignore them. (iOS also suppresses palm touches
-  // while the Pencil is active.) Finger pan/zoom comes with the editor shell — STEP 4.
+  // while the Pencil is active.) maxPointers(1) is REQUIRED so this gesture fails the moment a
+  // SECOND finger lands — otherwise it swallows two-finger touches and the editor's pinch-zoom /
+  // two-finger-pan (a parent GestureDetector) never activate. Single pointer (the pen) → draw;
+  // two pointers (fingers) → released to the zoom/pan gestures above.
   const pan = Gesture.Pan()
     .enabled(active)
+    .maxPointers(1)
     .minDistance(0)
     .onBegin((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
     .onUpdate((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
