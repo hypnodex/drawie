@@ -56,10 +56,13 @@ type DrawCanvasProps = {
   /** Eyedropper: when true a tap samples this layer's pixel and reports its hex (null = transparent). */
   picking?: boolean
   onPick?: (hex: string | null) => void
+  /** When true the draw gesture is disabled (e.g. the settings popover is open over the canvas), so a
+   *  stylus touch can't draw on or through the panel. */
+  blocked?: boolean
 }
 
 export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function DrawCanvas(
-  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd, picking = false, onPick }, ref,
+  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd, picking = false, onPick, blocked = false }, ref,
 ) {
   // Read the latest live callbacks without re-subscribing the gesture handlers.
   const liveStartRef = useRef(onLiveStart); liveStartRef.current = onLiveStart
@@ -164,9 +167,15 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   }, [backend, image, stopTick])
 
   // ── engine driven incrementally from the gesture (JS thread) ────────────────
+  // Read the latest tool/settings via refs so a slider/colour change does NOT re-render this
+  // component (Skia canvas + gesture handlers) on every tick — that was the source of slider lag.
+  // The engine only needs them at stroke-begin, which always reads the current ref value.
+  const toolRef = useRef(tool); toolRef.current = tool
+  const settingsRef = useRef(settings); settingsRef.current = settings
   // tiltX/tiltY come from the pen's stylusData and are RETAINED in the model (the engine
   // ignores tilt for now — closes the §9 gap; tools can use it later).
   const begin = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
+    const tool = toolRef.current, settings = settingsRef.current
     if (tool === 'bucket') return // 'BG color' is applied at the editor level (the artboard paper), not painted into pixels
     const { x, y } = toArtboard(vx, vy)
     startT.current = Date.now()
@@ -179,7 +188,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     if (tool === 'watercolor') { stopTick(); tickRaf.current = requestAnimationFrame(tickLoop) }
     scheduleDisplay()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend, tool, settings, scheduleDisplay, tickLoop, stopTick])
+  }, [backend, scheduleDisplay, tickLoop, stopTick])
 
   const move = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
     const e = eng.current
@@ -197,6 +206,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   const end = useCallback(() => {
     const e = eng.current
     if (!e) return
+    const tool = toolRef.current, settings = settingsRef.current
     stopTick()
     e.end()
     liveEndRef.current?.(tool === 'watercolor' ? ticks.current : undefined)
@@ -216,7 +226,8 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     eng.current = null
     scheduleDisplay()
     notifyHistory()
-  }, [tool, settings, backend, scheduleDisplay, stopTick])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend, scheduleDisplay, stopTick])
 
   // ── history (imperative; driven by the editor's undo/redo/clear buttons) ─────
   // Instant: restore the previous/next pixel checkpoint with a single blit. The vector model
@@ -290,16 +301,21 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // SECOND finger lands — otherwise it swallows two-finger touches and the editor's pinch-zoom /
   // two-finger-pan (a parent GestureDetector) never activate. Single pointer (the pen) → draw;
   // two pointers (fingers) → released to the zoom/pan gestures above.
-  const pan = Gesture.Pan()
-    .enabled(active && !picking)
+  // useMemo'd so a slider/colour change (which re-renders this component) doesn't rebuild the gesture
+  // tree every tick — that churn was the slider lag. Only active/picking changes rebuild them.
+  const pan = useMemo(() => Gesture.Pan()
+    .enabled(active && !picking && !blocked)
     .maxPointers(1)
     .minDistance(0)
     .onBegin((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
     .onUpdate((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
-    .onFinalize(() => { runOnJS(end)() }) // fires on lift AND cancel
+    .onFinalize(() => { runOnJS(end)() }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [active, picking, blocked, begin, move, end])
 
+  const onPickRef = useRef(onPick); onPickRef.current = onPick
   // Eyedropper: sample this layer's pixel at the tap (any pointer) and report its hex (null = transparent).
-  const sampleAt = (vx: number, vy: number) => {
+  const sampleAt = useCallback((vx: number, vy: number) => {
     if (!alive.current) return
     const { x, y } = toArtboard(vx, vy)
     backend.flush()
@@ -309,14 +325,16 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     )
     if (px && px.a >= 0.5) {
       const h = (n: number) => Math.round(n).toString(16).padStart(2, '0')
-      onPick?.(`#${h(px.r)}${h(px.g)}${h(px.b)}`)
-    } else onPick?.(null)
-  }
-  const tap = Gesture.Tap().enabled(picking).onEnd((e) => { runOnJS(sampleAt)(e.x, e.y) })
+      onPickRef.current?.(`#${h(px.r)}${h(px.g)}${h(px.b)}`)
+    } else onPickRef.current?.(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backend])
+  const tap = useMemo(() => Gesture.Tap().enabled(picking).onEnd((e) => { runOnJS(sampleAt)(e.x, e.y) }), [picking, sampleAt])
+  const gesture = useMemo(() => Gesture.Race(tap, pan), [tap, pan])
 
   return (
     <View style={styles.fill} onLayout={onLayout}>
-      <GestureDetector gesture={Gesture.Race(tap, pan)}>
+      <GestureDetector gesture={gesture}>
         <Canvas style={StyleSheet.absoluteFill}>
           {dims.w > 0 && <Image image={image} x={0} y={0} width={dims.w} height={dims.h} fit="contain" />}
         </Canvas>

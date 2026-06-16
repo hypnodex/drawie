@@ -382,6 +382,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                     settings={s}
                     picking={pickMode && L.id === activeId}
                     onPick={onPickColor}
+                    blocked={settingsOpen}
                     onHistory={(h) => setHistById((m) => ({ ...m, [L.id]: h }))}
                     onLiveStart={onLiveStart}
                     onLiveAppend={onLiveAppend}
