@@ -114,7 +114,7 @@ export default function CanvasDetailScreen() {
       <div className="mt-6 grid lg:grid-cols-5 gap-8">
         <div className="lg:col-span-3">
           <Surface variant="secondary" className="relative overflow-hidden rounded-[var(--radius)]">
-            <MosaicPreview canvas={canvas} showGrid={!isCompleted} />
+            <MosaicPreview canvas={canvas} showGrid={!isCompleted} trueAspect />
 
             {/* grid toggle */}
             <button

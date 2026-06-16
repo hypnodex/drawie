@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { View, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native'
+import { View, Pressable, ActivityIndicator, Image } from 'react-native'
 import { getCanvas, getTilesForCanvas, claimTile, getHostId, supabase, type Canvas, type Tile } from '@drawie/data'
 import { useRealtimeTiles } from '../hooks/useRealtimeTiles'
 import { useRealtimeCanvas } from '../hooks/useRealtimeCanvas'
@@ -64,8 +64,15 @@ export function CanvasScreen({
     return () => { alive = false }
   }, [canvasId, canvas?.visibility])
 
-  const cols = tiles && tiles.length ? Math.max(...tiles.map((t) => t.col)) + 1 : 1
+  const cols = canvas?.gridCols ?? (tiles && tiles.length ? Math.max(...tiles.map((t) => t.col)) + 1 : 1)
+  const rows = canvas?.gridRows ?? (tiles && tiles.length ? Math.max(...tiles.map((t) => t.row)) + 1 : 1)
   const isCompleted = canvas?.status === 'completed'
+  // Fit the WHOLE mosaic into the available area with square tiles: width is capped so the grid's
+  // height (width·rows/cols) never exceeds the area — the entire mosaic is visible, no scrolling.
+  const [gridArea, setGridArea] = useState({ w: 0, h: 0 })
+  const fitW = gridArea.w > 0 && gridArea.h > 0
+    ? Math.min(gridArea.w, (gridArea.h - 16) * (cols / rows))
+    : gridArea.w
 
   const onTile = async (tile: Tile) => {
     if (tile.status === 'completed' || claiming || !canvas) return
@@ -107,7 +114,7 @@ export function CanvasScreen({
           <Button onPress={load}><Text>Retry</Text></Button>
         </View>
       ) : (
-        <ScrollView contentContainerClassName="w-full max-w-[720px] self-center p-4">
+        <View className="w-full max-w-[720px] flex-1 self-center p-4">
           {!!error && <Text className="mb-2 text-center text-sm text-destructive">{error}</Text>}
 
           {canvas && (
@@ -118,45 +125,48 @@ export function CanvasScreen({
           )}
 
           {isCompleted ? (
-            // ── Reveal ──────────────────────────────────────────────────────────────────
-            <View className="items-center gap-3">
-              <Text className="mt-1 text-lg font-extrabold text-foreground">✨ Mosaic complete</Text>
+            // ── Reveal ── whole artwork fit to the area, true aspect ratio ───────────────
+            <View className="flex-1 items-center justify-center gap-3">
+              <Text className="text-lg font-extrabold text-foreground">✨ Mosaic complete</Text>
               {canvas?.artworkUrl ? (
-                <Image
-                  source={{ uri: canvas.artworkUrl }}
-                  className="w-full rounded-2xl bg-muted"
-                  style={{ aspectRatio: (canvas?.gridCols ?? 1) / (canvas?.gridRows ?? 1) }}
-                  resizeMode="cover"
-                />
+                <View className="flex-1 w-full items-center justify-center" onLayout={(e) => setGridArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+                  <Image
+                    source={{ uri: canvas.artworkUrl }}
+                    className="rounded-2xl bg-muted"
+                    style={{ width: fitW || '100%', aspectRatio: cols / rows }}
+                    resizeMode="cover"
+                  />
+                </View>
               ) : (
-                // artwork_url lands a moment after completion (composite runs async); the canvas
-                // subscription reloads us when it does.
-                <View className="aspect-square w-full items-center justify-center gap-2.5 rounded-2xl bg-muted">
+                <View className="aspect-square w-full max-w-[80%] items-center justify-center gap-2.5 rounded-2xl bg-muted">
                   <ActivityIndicator color={SPINNER} />
                   <Text className="text-[13px] text-muted-foreground">Compositing the mosaic…</Text>
                 </View>
               )}
             </View>
           ) : (
-            // ── Live mosaic grid ──────────────────────────────────────────────────────────
-            // Mirrors the web canvas detail: the tile grid is framed as a mosaic taking shape
-            // (rounded preview surface), with a status legend + claim hint underneath.
+            // ── Live mosaic grid ── square tiles, whole mosaic fits the viewport (no scroll) ──
             <>
-              <View className="overflow-hidden rounded-2xl bg-secondary p-2">
-                <View className="flex-row flex-wrap">
-                  {tiles!.map((t) => (
-                    <Pressable
-                      key={t.id}
-                      onPress={() => onTile(t)}
-                      disabled={t.status === 'completed' || !!claiming}
-                      className="aspect-square p-[1.5px]"
-                      style={{ width: `${100 / cols}%` }}
-                    >
-                      <View className={cn('flex-1 items-center justify-center rounded-[3px]', cellClasses(t.status), claiming === t.id && 'opacity-70')}>
-                        {claiming === t.id && <ActivityIndicator size="small" color="white" />}
-                      </View>
-                    </Pressable>
-                  ))}
+              <View
+                className="flex-1 items-center justify-center"
+                onLayout={(e) => setGridArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+              >
+                <View style={{ width: fitW || '100%' }} className="overflow-hidden rounded-2xl bg-secondary p-2">
+                  <View className="flex-row flex-wrap">
+                    {tiles!.map((t) => (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => onTile(t)}
+                        disabled={t.status === 'completed' || !!claiming}
+                        className="aspect-square p-[1.5px]"
+                        style={{ width: `${100 / cols}%` }}
+                      >
+                        <View className={cn('flex-1 items-center justify-center rounded-[3px]', cellClasses(t.status), claiming === t.id && 'opacity-70')}>
+                          {claiming === t.id && <ActivityIndicator size="small" color="white" />}
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
               </View>
 
@@ -171,7 +181,7 @@ export function CanvasScreen({
               </View>
             </>
           )}
-        </ScrollView>
+        </View>
       )}
     </View>
   )

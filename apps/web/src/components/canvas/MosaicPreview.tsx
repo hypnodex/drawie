@@ -7,6 +7,9 @@ interface Props {
   blurContent?: boolean
   showGrid?: boolean
   className?: string
+  /** When true, the preview uses the canvas grid's real aspect ratio (cols/rows) so tiles stay
+   *  SQUARE for non-square mosaics. Default false = square (the card-grid layout wants square). */
+  trueAspect?: boolean
 }
 
 /**
@@ -15,9 +18,12 @@ interface Props {
  * canvases render the procedural canvas with a soft blur + grid-status chip.
  */
 export function MosaicPreview({
-  canvas, blurContent = true, showGrid = true, className = '',
+  canvas, blurContent = true, showGrid = true, className = '', trueAspect = false,
 }: Props) {
   const isCompleted = canvas.status === 'completed'
+  const aspectRatio = trueAspect && canvas.gridCols && canvas.gridRows
+    ? `${canvas.gridCols} / ${canvas.gridRows}`
+    : '1 / 1'
 
   const grid = useMemo(() => {
     if (!showGrid) return null
@@ -36,8 +42,8 @@ export function MosaicPreview({
 
   return (
     <div
-      className={['relative w-full aspect-square overflow-hidden', className].join(' ')}
-      style={{ background: canvas.previewGradient }}
+      className={['relative w-full overflow-hidden', className].join(' ')}
+      style={{ background: canvas.previewGradient, aspectRatio }}
     >
       {useRealArtwork ? (
         <img
