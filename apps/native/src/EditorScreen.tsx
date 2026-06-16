@@ -59,6 +59,9 @@ function toModerationDataUrl(composite: SkImage): string {
  * non-active wrappers are pointerEvents="none", so touches fall through to the active one).
  * Undo/redo/clear route to the active layer's ref; history is tracked per layer.
  */
+// Bump on every native edit batch so we can confirm on-device that the iPad loaded the fresh bundle
+// (this worktree's Metro doesn't auto-watch, so stale bundles are the usual false alarm).
+const BUILD = 'b12'
 export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: string; tile?: Tile; canvas?: Canvas; onExit?: () => void }) {
   // Founder constraints — restrict the tool bar + colour palette to what this canvas allows.
   const allowedTools = canvas?.allowedTools?.length ? TOOL_IDS.filter((t) => canvas.allowedTools.includes(t)) : TOOL_IDS
@@ -310,8 +313,9 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   return (
     <View className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border bg-background px-3 pt-3 pb-2">
-        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-24">
+        <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-24 flex-row items-center gap-1.5">
           <Text className="text-[15px] font-semibold text-foreground">← Leave</Text>
+          <Text className="text-[9px] font-bold text-primary">{BUILD}</Text>
         </Pressable>
         <View className="flex-1 items-center px-2">
           {canvas?.styleGuidance ? (
