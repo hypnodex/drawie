@@ -37,6 +37,8 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
   smudge:     { name: 'Smudge',     subtitle: 'Smear nearby pixels',            usesColor: false, usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   waterdrop:  { name: 'Waterdrop',  subtitle: 'Spread wet colors outward',      usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   impasto:    { name: 'Impasto',    subtitle: 'Thick raised paint, with depth',  usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: true,  usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
+  oil:        { name: 'Oil Paint',  subtitle: 'Thick bristled paint with sheen',  usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
+  bucket:     { name: 'Fill',       subtitle: 'Flood the whole layer with colour', usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
@@ -79,7 +81,9 @@ export function ToolSettingsPanel({
         </>
       )}
 
-      <Slider label="Size" value={settings.size} min={1} max={120} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
+      {tool !== 'bucket' && (
+        <Slider label="Size" value={settings.size} min={1} max={120} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
+      )}
 
       {tool !== 'eraser' && tool !== 'smudge' && !waterOnly && (
         <Slider label="Opacity" value={settings.opacity} min={0.05} max={1} step={0.01} onChange={(v) => onChange({ opacity: v })} format={pct} />

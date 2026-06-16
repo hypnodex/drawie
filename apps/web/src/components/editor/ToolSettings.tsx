@@ -44,6 +44,8 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
   smudge:     { name: 'Smudge',     subtitle: 'Smear nearby pixels',       usesColor: false, usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   waterdrop:  { name: 'Waterdrop',  subtitle: 'Spread wet colors outward', usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   impasto:    { name: 'Impasto',    subtitle: 'Thick raised paint, with depth', usesColor: true, usesPressure: true, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: true,  usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
+  oil:        { name: 'Oil Paint',  subtitle: 'Thick bristled paint with sheen', usesColor: true, usesPressure: true, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
+  bucket:     { name: 'Fill',       subtitle: 'Flood the whole layer with colour', usesColor: true, usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
 }
 
 export function ToolSettingsPanel({
@@ -103,10 +105,12 @@ export function ToolSettingsPanel({
         </Section>
       )}
 
-      <Section title="Size">
-        <Slider min={1} max={120} step={1} value={settings.size} onChange={(v) => onChange({ size: v })} suffix="px" />
-        <BrushPreview tool={tool} settings={settings} />
-      </Section>
+      {tool !== 'bucket' && (
+        <Section title="Size">
+          <Slider min={1} max={120} step={1} value={settings.size} onChange={(v) => onChange({ size: v })} suffix="px" />
+          <BrushPreview tool={tool} settings={settings} />
+        </Section>
+      )}
 
       {tool !== 'eraser' && tool !== 'smudge'
         && !(tool === 'waterdrop' && settings.color === 'transparent') && (

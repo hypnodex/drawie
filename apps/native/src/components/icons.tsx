@@ -98,6 +98,21 @@ export const ImpastoIcon = (p: IconProps) => (
     <Path d="M6.2 15.2c1.9-3.6 5-6.5 8.8-7.3 1.5-.3 2.7.4 2.7 1.8 0 2.9-3.7 5.7-8.2 6.5-1.8.3-3.6-.1-3.3-1z" />
   </Solid>
 )
+export const OilIcon = (p: IconProps) => (
+  <Solid {...p}>
+    {/* dragged oil-paint streak with bristle lines */}
+    <Path d="M3.5 15c2-4.4 6-8.3 10.8-9.3 2.6-.5 5 .7 5.6 2.8.6 2.4-1 4.6-3.6 5.8-3.9 1.8-8.6 2.3-12.8 2.6-.7 0-1.3-1.1-1-1.9z" opacity={0.92} />
+    <Path d="M5 13.4c2.6-.2 5.2-.5 7.6-1.2M6 15c2.4-.2 4.8-.6 7-1.4M5.6 11.6c2.2-.5 4.4-1.2 6.4-2.2" stroke="#000" strokeWidth={0.7} strokeOpacity={0.25} fill="none" strokeLinecap="round" />
+  </Solid>
+)
+export const BucketIcon = (p: IconProps) => (
+  <Solid {...p}>
+    {/* paint bucket */}
+    <Path d="M5 9h14l-1.4 9.3a2 2 0 0 1-2 1.7H8.4a2 2 0 0 1-2-1.7L5 9z" />
+    <Path d="M5.2 9 12 2.6 18.8 9" fill="none" stroke={p.color ?? '#000'} strokeWidth={1.6} strokeLinejoin="round" />
+    <Circle cx={12} cy={5} r={1.3} />
+  </Solid>
+)
 
 // ── Action glyphs (stroke) ───────────────────────────────────────────────────
 export const UndoIcon = (p: IconProps) => (<Stroke {...p}><Path d="M9 14L4 9l5-5" /><Path d="M4 9h10a6 6 0 010 12H9" /></Stroke>)
@@ -142,4 +157,6 @@ export const TOOL_ICON: Record<ToolId, (p: IconProps) => React.ReactElement> = {
   smudge: SmudgeIcon,
   waterdrop: WaterdropIcon,
   impasto: ImpastoIcon,
+  oil: OilIcon,
+  bucket: BucketIcon,
 }

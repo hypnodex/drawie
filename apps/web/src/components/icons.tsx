@@ -274,3 +274,16 @@ export const ImpastoIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M6.2 15.2c1.9-3.6 5-6.5 8.8-7.3 1.5-.3 2.7.4 2.7 1.8 0 2.9-3.7 5.7-8.2 6.5-1.8.3-3.6-.1-3.3-1z" />
   </svg>
 )
+export const OilIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...solid(p)}>
+    <path d="M3.5 15c2-4.4 6-8.3 10.8-9.3 2.6-.5 5 .7 5.6 2.8.6 2.4-1 4.6-3.6 5.8-3.9 1.8-8.6 2.3-12.8 2.6-.7 0-1.3-1.1-1-1.9z" opacity={0.92} />
+    <path d="M5 13.4c2.6-.2 5.2-.5 7.6-1.2M6 15c2.4-.2 4.8-.6 7-1.4M5.6 11.6c2.2-.5 4.4-1.2 6.4-2.2" stroke="#000" strokeWidth={0.7} strokeOpacity={0.25} fill="none" strokeLinecap="round" />
+  </svg>
+)
+export const BucketIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...solid(p)}>
+    <path d="M5 9h14l-1.4 9.3a2 2 0 0 1-2 1.7H8.4a2 2 0 0 1-2-1.7L5 9z" />
+    <path d="M5.2 9 12 2.6 18.8 9" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" />
+    <circle cx={12} cy={5} r={1.3} />
+  </svg>
+)

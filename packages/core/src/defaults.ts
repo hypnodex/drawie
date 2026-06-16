@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS: ToolSettingsMap = {
   smudge:     { color: '#000000', size: 36, opacity: 1.0,  softness: 0.5, strength: 0.55, pressureSim: false, wetPaint: false, ...COMMON },
   waterdrop:  { color: 'transparent', size: 80, opacity: 0.7, softness: 0.5, strength: 0.6, pressureSim: false, wetPaint: false, ...COMMON },
   impasto:    { color: '#c0563b', size: 42, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
+  oil:        { color: '#e8732a', size: 46, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1, dilution: 0.25 },
+  bucket:     { color: '#e8732a', size: 40, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: false, wetPaint: false, ...COMMON },
 }
 
 export const DEFAULT_ASSIST: AssistSettings = {

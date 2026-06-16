@@ -11,6 +11,8 @@ export type ToolId =
   | 'drybrush'
   | 'inkbrush'
   | 'impasto'
+  | 'oil'
+  | 'bucket'
 
 export type BrushShape = 'circle' | 'square'
 

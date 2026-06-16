@@ -36,6 +36,8 @@ export class StrokeEngine {
   private prevStampY = 0
   private prevStampDia = 0
   private hasPrevStamp = false
+  // bucket: fill the whole layer once per stroke (a tap), not per stamp
+  private bucketFilled = false
 
   // smudge tool needs to carry color from the underlying canvas
   private smudgePicked: PixelRegion | null = null
@@ -96,9 +98,10 @@ export class StrokeEngine {
     this.lastRawX = p.x
     this.lastRawY = p.y
     this.rawPoints = [{ ...p }]
-    if (this.tool === 'drybrush' || this.tool === 'inkbrush') {
+    this.bucketFilled = false
+    if (this.tool === 'drybrush' || this.tool === 'inkbrush' || this.tool === 'oil') {
       this.bristleDist = 0
-      this.generateBristles(this.tool === 'inkbrush')
+      this.generateBristles(this.tool !== 'drybrush') // dense for ink + oil, sparse for dry
     }
     this.stamp(sp)
   }
@@ -233,6 +236,8 @@ export class StrokeEngine {
       case 'drybrush':   return 0.05
       case 'inkbrush':   return 0.05
       case 'impasto':    return 0.07
+      case 'oil':        return 0.045
+      case 'bucket':     return 0.9
     }
   }
 
@@ -271,6 +276,8 @@ export class StrokeEngine {
       case 'drybrush':   this.stampBristle(point, r, false); break
       case 'inkbrush':   this.stampBristle(point, r, true);  break
       case 'impasto':    this.stampImpasto(point, r);    break
+      case 'oil':        this.stampOil(point, r);        break
+      case 'bucket':     this.stampBucket(point);        break
     }
     this.prevStampX = point.x
     this.prevStampY = point.y
@@ -316,6 +323,45 @@ export class StrokeEngine {
     this.fillShape(p.x + off, p.y + off, r, this.shade(color, -0.45), alpha * 0.95)        // shadow (bottom-right)
     this.fillShape(p.x - off * 0.65, p.y - off * 0.65, r * 0.9, this.shade(color, 0.55), alpha * 0.7) // highlight (top-left)
     this.fillShape(p.x, p.y, r, color, alpha)                                              // paint body
+  }
+
+  // BUCKET (fill whole layer) — one tap floods the entire active layer with the colour. Filled once
+  // per stroke (begin already stamps the first point), so a quick tap is enough; opacity is honoured.
+  private stampBucket(_p: StrokePoint) {
+    if (this.bucketFilled) return
+    this.bucketFilled = true
+    const color = this.settings.color === 'transparent' ? '#ffffff' : this.settings.color
+    this.backend.fillRect(0, 0, this.backend.width, this.backend.height, color, this.settings.opacity)
+  }
+
+  // OIL PAINT — thick bristled paint with a glossy sheen + depth, modelled on the reference photos:
+  // dense bristles give the streaky body, ~per-bristle shade variation gives the dragged-paint look,
+  // a stable subset of central bristles paints a bright highlight (wet sheen), and the outer bristles
+  // darken for a raised edge. "Amount of colour" is the opacity × dilution.
+  private stampOil(p: StrokePoint, r: number) {
+    const color = this.settings.color === 'transparent' ? '#000000' : this.settings.color
+    let dx = p.x - this.prevStampX
+    let dy = p.y - this.prevStampY
+    let len = Math.hypot(dx, dy)
+    if (!this.hasPrevStamp || len < 1e-4) { dx = 1; dy = 0; len = 1 }
+    else { this.bristleDist += len }
+    dx /= len; dy /= len
+    const perpX = -dy, perpY = dx
+    const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.6 + 0.4 * p.pressure) : 1)
+    const a = this.applyDilution(baseAlpha)
+    for (const b of this.bristles) {
+      const wobble = (this.smoothNoise(this.bristleDist * 0.05 + b.seed, b.seed) - 0.5) * r * 0.1
+      const off = b.off * r + wobble
+      const bx = p.x + perpX * off
+      const by = p.y + perpY * off
+      const edge = Math.abs(b.off)
+      const v = this.smoothNoise(this.bristleDist * 0.09 + b.seed * 2.3, b.seed) - 0.5
+      let c = this.shade(color, v * 0.45)               // streaky dragged-paint variation
+      if (b.dry > 0.92 && edge < 0.55) c = this.shade(color, 0.62) // glossy highlight streak
+      else if (edge > 0.82) c = this.shade(color, -0.42)          // darkened raised edge
+      const bw = Math.max(0.5, b.w * r * 0.42)
+      this.backend.fillCircle(bx, by, bw, c, a)
+    }
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */
