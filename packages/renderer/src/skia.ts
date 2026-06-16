@@ -58,6 +58,7 @@ export class SkiaBackend implements RendererBackend {
       case 'multiply': return ck.BlendMode.Multiply
       case 'destination-out': return ck.BlendMode.DstOut
       case 'destination-in': return ck.BlendMode.DstIn
+      case 'destination-over': return ck.BlendMode.DstOver
       default: return ck.BlendMode.SrcOver
     }
   }

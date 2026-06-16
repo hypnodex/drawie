@@ -725,7 +725,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
                 width: stripW, height: stripH,
                 overflow: 'hidden',
                 pointerEvents: 'none',
-                background: 'var(--strip-bg)',
+                // Make the neighbour areas clearly visible (even when empty): a distinct fill + framing
+                // border so contributors can see exactly where neighbours' edges sit.
+                background: '#d7dce6',
+                border: '1px solid rgba(20,28,40,0.16)',
+                boxSizing: 'border-box',
               }}
             >
               {imgSrc && (

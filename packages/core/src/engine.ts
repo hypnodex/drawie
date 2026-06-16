@@ -99,9 +99,11 @@ export class StrokeEngine {
     this.lastRawY = p.y
     this.rawPoints = [{ ...p }]
     this.bucketFilled = false
-    if (this.tool === 'drybrush' || this.tool === 'inkbrush' || this.tool === 'oil') {
+    if (this.tool === 'drybrush' || this.tool === 'inkbrush') {
       this.bristleDist = 0
-      this.generateBristles(this.tool !== 'drybrush') // dense for ink + oil, sparse for dry
+      this.generateBristles(this.tool === 'inkbrush')
+    } else if (this.tool === 'oil') {
+      this.bristleDist = 0 // oil uses bristleDist for its streak noise, but not the bristle set
     }
     this.stamp(sp)
   }
@@ -331,7 +333,9 @@ export class StrokeEngine {
     if (this.bucketFilled) return
     this.bucketFilled = true
     const color = this.settings.color === 'transparent' ? '#ffffff' : this.settings.color
-    this.backend.fillRect(0, 0, this.backend.width, this.backend.height, color, this.settings.opacity)
+    // destination-over → fill lands UNDER existing strokes (only unpainted areas take the colour),
+    // so this sets the BACKGROUND colour without covering the artwork.
+    this.backend.fillRect(0, 0, this.backend.width, this.backend.height, color, this.settings.opacity, 'destination-over')
   }
 
   // OIL PAINT — thick bristled paint with a glossy sheen + depth, modelled on the reference photos:
@@ -347,21 +351,21 @@ export class StrokeEngine {
     else { this.bristleDist += len }
     dx /= len; dy /= len
     const perpX = -dy, perpY = dx
-    const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.6 + 0.4 * p.pressure) : 1)
+    const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1)
     const a = this.applyDilution(baseAlpha)
-    for (const b of this.bristles) {
-      const wobble = (this.smoothNoise(this.bristleDist * 0.05 + b.seed, b.seed) - 0.5) * r * 0.1
-      const off = b.off * r + wobble
-      const bx = p.x + perpX * off
-      const by = p.y + perpY * off
-      const edge = Math.abs(b.off)
-      const v = this.smoothNoise(this.bristleDist * 0.09 + b.seed * 2.3, b.seed) - 0.5
-      let c = this.shade(color, v * 0.45)               // streaky dragged-paint variation
-      if (b.dry > 0.92 && edge < 0.55) c = this.shade(color, 0.62) // glossy highlight streak
-      else if (edge > 0.82) c = this.shade(color, -0.42)          // darkened raised edge
-      const bw = Math.max(0.5, b.w * r * 0.42)
-      this.backend.fillCircle(bx, by, bw, c, a)
+    // Smooth opaque paint body (soft round stamp that builds up to full) — the reference is creamy
+    // and soft-edged, not a dry bristle scatter.
+    this.fillShape(p.x, p.y, r, color, Math.min(1, a * 0.55))
+    // A few SOFT tonal streaks across the width → the gentle dragged-paint variation.
+    for (let i = -2; i <= 2; i++) {
+      const off = (i / 2) * r * 0.72
+      const sx = p.x + perpX * off
+      const sy = p.y + perpY * off
+      const v = this.smoothNoise(this.bristleDist * 0.05 + i * 9.3, i * 3.1) - 0.5
+      this.fillShape(sx, sy, r * 0.26, this.shade(color, v * 0.28), a * 0.22)
     }
+    // Glossy sheen — one soft lighter streak offset to a side (wet-paint highlight).
+    this.fillShape(p.x + perpX * (-r * 0.42), p.y + perpY * (-r * 0.42), r * 0.3, this.shade(color, 0.5), a * 0.22)
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */

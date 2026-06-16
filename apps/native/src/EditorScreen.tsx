@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { StyleSheet, View, Pressable, ScrollView, ActivityIndicator, Alert, Image, type LayoutChangeEvent } from 'react-native'
+import { StyleSheet, View, Pressable, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, StatusBar, type LayoutChangeEvent } from 'react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
@@ -293,8 +293,9 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     : []
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between border-b border-border px-3 pt-3 pb-2">
+    <SafeAreaView style={{ flex: 1, backgroundColor: tokenColors.background }}>
+      <StatusBar barStyle="dark-content" />
+      <View className="flex-row items-center justify-between border-b border-border bg-background px-3 pt-3 pb-2">
         <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-24">
           <Text className="text-[15px] font-semibold text-foreground">← Leave</Text>
         </Pressable>
@@ -317,7 +318,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
         )}
       </View>
       {!!submitError && <Text numberOfLines={2} className="px-3 py-1 text-center text-xs text-destructive">{submitError}</Text>}
-      <View className="flex-1 bg-muted" onLayout={onWrapLayout}>
+      <View className="flex-1 overflow-hidden bg-muted" onLayout={onWrapLayout}>
         {inner > 0 && (
           <GestureDetector gesture={zoomGesture}>
             <Animated.View style={[{ position: 'absolute', left: stageLeft, top: stageTop, width: S, height: S }, zoomStyle]}>
@@ -332,7 +333,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
               const imgOffsetTop = o.row === -1 ? -innerOffset : 0
               const art = neighborArt[cell]
               return (
-                <View key={cell} style={{ position: 'absolute', left: stripLeft, top: stripTop, width: stripW, height: stripH, overflow: 'hidden', backgroundColor: '#eceef3' }}>
+                <View key={cell} style={{ position: 'absolute', left: stripLeft, top: stripTop, width: stripW, height: stripH, overflow: 'hidden', backgroundColor: '#d7dce6', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(20,28,40,0.18)' }}>
                   {art && (
                     <Image
                       source={{ uri: art }}
@@ -348,8 +349,12 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
               )
             })}
 
-            {/* Artboard — inset by `sliver`; white paper, stacked layer canvases. */}
-            <View style={{ position: 'absolute', left: sliver, top: sliver, width: inner, height: inner, backgroundColor: '#fff' }}>
+            {/* Artboard — inset by `sliver`; white paper, stacked layer canvases. Green ring + drop
+                shadow (mirrors the web) so the active drawing area reads as the focus. */}
+            <View
+              className="border-2 border-primary"
+              style={{ position: 'absolute', left: sliver, top: sliver, width: inner, height: inner, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 8 }}
+            >
               {layers.map((L, i) => (
                 <View
                   key={L.id}
@@ -464,6 +469,6 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
       {mosaicOpen && !!canvasId && (
         <MosaicGridSheet canvasId={canvasId} canvas={canvas} userTile={tile} onClose={() => setMosaicOpen(false)} />
       )}
-    </View>
+    </SafeAreaView>
   )
 }

@@ -38,7 +38,7 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
   waterdrop:  { name: 'Waterdrop',  subtitle: 'Spread wet colors outward',      usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   impasto:    { name: 'Impasto',    subtitle: 'Thick raised paint, with depth',  usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: true,  usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
   oil:        { name: 'Oil Paint',  subtitle: 'Thick bristled paint with sheen',  usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
-  bucket:     { name: 'Fill',       subtitle: 'Flood the whole layer with colour', usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
+  bucket:     { name: 'BG color',   subtitle: 'Set the background (behind your art)', usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`

@@ -58,7 +58,7 @@ export interface Box {
 }
 
 /** The composite (blend) modes the engine relies on. Subset of GlobalCompositeOperation. */
-export type CompositeOp = 'source-over' | 'multiply' | 'destination-out' | 'destination-in'
+export type CompositeOp = 'source-over' | 'multiply' | 'destination-out' | 'destination-in' | 'destination-over'
 
 /**
  * A drawing target. The main canvas is a RendererBackend; offscreen scratch

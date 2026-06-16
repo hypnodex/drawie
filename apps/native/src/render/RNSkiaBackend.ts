@@ -67,6 +67,7 @@ export class RNSkiaBackend implements RendererBackend {
       case 'multiply': return BlendMode.Multiply
       case 'destination-out': return BlendMode.DstOut
       case 'destination-in': return BlendMode.DstIn
+      case 'destination-over': return BlendMode.DstOver
       default: return BlendMode.SrcOver
     }
   }
