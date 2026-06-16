@@ -77,6 +77,10 @@ export class StrokeEngine {
     private settings: ToolSettings,
     private assist: AssistSettings = DEFAULT_ASSIST,
     seed = 1,
+    // OIL ONLY (Phase A impasto): a single-channel HEIGHT (thickness) buffer the oil brush deposits into,
+    // alongside the colour it paints on `backend`. A later lighting pass turns this into 3D relief. When
+    // absent (every other tool, and any caller that doesn't opt in) oil simply lays flat colour.
+    private heightBackend?: RendererBackend,
   ) {
     this.rng = mulberry32(seed)
   }
@@ -338,41 +342,33 @@ export class StrokeEngine {
     this.backend.fillRect(0, 0, this.backend.width, this.backend.height, color, this.settings.opacity, 'destination-over')
   }
 
-  // OIL PAINT — thick bristled paint with a glossy sheen + depth, modelled on the reference photos:
-  // dense bristles give the streaky body, ~per-bristle shade variation gives the dragged-paint look,
-  // a stable subset of central bristles paints a bright highlight (wet sheen), and the outer bristles
-  // darken for a raised edge. "Amount of colour" is the opacity × dilution.
+  // OIL PAINT (Phase A impasto) — deposits FLAT colour (the albedo) plus a soft round HEIGHT bump into the
+  // separate height buffer; the relief + ridge sheen come entirely from the lighting pass, NOT from faked
+  // shading here. Height accumulates (impasto build-up) as the stroke overlaps itself, so a dragged stroke
+  // grows a raised ridge. With no height buffer (e.g. a flat replay) oil just lays the flat colour.
   private stampOil(p: StrokePoint, r: number) {
     const color = this.settings.color === 'transparent' ? '#000000' : this.settings.color
-    let dx = p.x - this.prevStampX
-    let dy = p.y - this.prevStampY
-    let len = Math.hypot(dx, dy)
-    if (!this.hasPrevStamp || len < 1e-4) { dx = 1; dy = 0; len = 1 }
-    else { this.bristleDist += len }
-    dx /= len; dy /= len
-    const perpX = -dy, perpY = dx
     const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1)
     const a = this.applyDilution(baseAlpha)
-    // Creamy opaque body that builds to full.
-    this.fillShape(p.x, p.y, r, color, Math.min(1, a * 0.6))
-    // MANY fine dragged bristle ridges (light/dark) — the troweled, streaky oil-paint texture from the refs.
-    const ridges = 11
-    for (let i = 0; i < ridges; i++) {
-      const t = (i / (ridges - 1)) * 2 - 1
-      const off = t * r * 0.88
-      const sx = p.x + perpX * off
-      const sy = p.y + perpY * off
-      const v = this.smoothNoise(this.bristleDist * 0.085 + i * 7.9, i * 3.3) - 0.5 // -0.5..0.5
-      this.fillShape(sx, sy, r * 0.13, this.shade(color, v * 0.6), a * 0.5)
-    }
-    // Bright SPECULAR sheen — several near-white glossy streaks running along the upper half (wet gloss).
-    for (let k = 0; k < 4; k++) {
-      const off = (-0.08 - k * 0.17) * r
-      const hv = this.smoothNoise(this.bristleDist * 0.07 + k * 5.3 + 2, k * 2.1)
-      if (hv > 0.48) this.fillShape(p.x + perpX * off, p.y + perpY * off, r * 0.1, this.shade(color, 0.9), a * 0.65)
-    }
-    // Darker lower edge → raised-paint depth.
-    this.fillShape(p.x + perpX * (r * 0.72), p.y + perpY * (r * 0.72), r * 0.16, this.shade(color, -0.45), a * 0.35)
+    // Opaque paint body (albedo only — the relief comes from the height pass).
+    this.fillShape(p.x, p.y, r, color, Math.min(1, a))
+
+    if (!this.heightBackend) return
+    // HEIGHT deposit: soft round white bump whose coverage = thickness. `flow` (the Strength slider) sets
+    // how much height each dab lays; pressure scales it. Soft falloff → rounded relief instead of a wall.
+    const flow = this.settings.strength
+    const hAlpha = Math.min(0.92, (0.22 + 0.6 * flow) * (this.settings.pressureSim ? (0.5 + 0.5 * p.pressure) : 1))
+    const reach = r * 1.04
+    const stops: GradientStop[] = [
+      { offset: 0,    color: 'rgba(255,255,255,1)' },
+      { offset: 0.5,  color: 'rgba(255,255,255,1)' },
+      { offset: 1,    color: 'rgba(255,255,255,0)' },
+    ]
+    this.heightBackend.fillRadialGradient(
+      p.x, p.y, 0, reach, stops,
+      { x: p.x - reach - 1, y: p.y - reach - 1, w: reach * 2 + 2, h: reach * 2 + 2 },
+      undefined, hAlpha,
+    )
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */
