@@ -6,7 +6,8 @@ import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useSharedValue, runOnJS } from 'react-native-reanimated'
 import {
-  StrokeEngine, DEFAULT_ASSIST, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings, type AssistSettings,
+  StrokeEngine, DEFAULT_ASSIST, DEFAULT_IMPASTO,
+  type StrokeSample, type ModelStroke, type ToolId, type ToolSettings, type AssistSettings,
 } from '@drawie/core'
 import { RNSkiaBackend } from './render/RNSkiaBackend'
 
@@ -69,6 +70,18 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   const liveAppendRef = useRef(onLiveAppend); liveAppendRef.current = onLiveAppend
   const liveEndRef = useRef(onLiveEnd); liveEndRef.current = onLiveEnd
   const backend = useMemo(() => new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true), [])
+  // OIL IMPASTO (Phase A): a per-layer single-channel HEIGHT buffer + a LIT display surface, both created
+  // LAZILY the first time oil is used on this layer. Non-oil layers never allocate them and keep showing
+  // the albedo surface directly (behaviour unchanged). The lit surface = lighting(albedo, height); we
+  // relight only the accumulated dirty bbox each frame. `backend` stays the pure albedo (undo/submit base).
+  const heightBackend = useRef<RNSkiaBackend | null>(null)
+  const litBackend = useRef<RNSkiaBackend | null>(null)
+  const dirty = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const markDirty = (x: number, y: number, rad: number) => {
+    const d = dirty.current
+    if (!d) dirty.current = { x0: x - rad, y0: y - rad, x1: x + rad, y1: y + rad }
+    else { d.x0 = Math.min(d.x0, x - rad); d.y0 = Math.min(d.y0, y - rad); d.x1 = Math.max(d.x1, x + rad); d.y1 = Math.max(d.y1, y + rad) }
+  }
   const strokes = useRef<ModelStroke[]>([])
   // Undo/redo as pixel checkpoints for INSTANT restore — model-replay was O(strokes) and felt
   // slow. undoSnaps[0] is the blank canvas; each committed stroke pushes a full-surface snapshot,
@@ -110,7 +123,19 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
       displayScheduled.current = false
       if (!alive.current) return
       backend.flush()
-      const snap = backend.surface.makeImageSnapshot()
+      // Oil layers display the LIT surface = lighting(albedo, height) over the accumulated dirty bbox;
+      // a zero-height region is a no-op so non-oil strokes on the same layer pass through unchanged.
+      let src: RNSkiaBackend = backend
+      const lit = litBackend.current, hb = heightBackend.current
+      if (lit && hb) {
+        hb.flush()
+        const d = dirty.current
+        lit.litImpasto(backend, hb, DEFAULT_IMPASTO, d ? { x: d.x0, y: d.y0, w: d.x1 - d.x0, h: d.y1 - d.y0 } : undefined)
+        lit.flush()
+        dirty.current = null
+        src = lit
+      }
+      const snap = src.surface.makeImageSnapshot()
       const toDispose = prevDisplay.current
       prevDisplay.current = image.value
       image.value = snap
@@ -163,6 +188,8 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
       undoSnaps.current.forEach((s) => s.dispose())
       redoSnaps.current.forEach((s) => s.dispose())
       backend.dispose?.()
+      heightBackend.current?.dispose?.()
+      litBackend.current?.dispose?.()
     }
   }, [backend, image, stopTick])
 
@@ -185,7 +212,19 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     const { x, y } = toArtboard(vx, vy)
     startT.current = Date.now()
     seed.current = (Math.random() * 0xffffffff) >>> 0
-    eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current)
+    // First oil dab on this layer → allocate the height + lit surfaces; seed the lit surface with the
+    // current albedo so any existing (non-oil) content keeps showing, and relight the whole thing once.
+    if (tool === 'oil' && !heightBackend.current) {
+      heightBackend.current = new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true)
+      litBackend.current = new RNSkiaBackend(Skia.Surface.Make(ARTBOARD, ARTBOARD)!, true)
+      const cur = backend.surface.makeImageSnapshot()
+      litBackend.current.surface.getCanvas().drawImage(cur, 0, 0)
+      litBackend.current.flush()
+      cur.dispose()
+      dirty.current = { x0: 0, y0: 0, x1: ARTBOARD, y1: ARTBOARD }
+    }
+    if (litBackend.current) markDirty(x, y, settings.size)
+    eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current, heightBackend.current ?? undefined)
     samples.current = [{ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 }]
     ticks.current = []
     eng.current.begin({ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 })
@@ -201,6 +240,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     const { x, y } = toArtboard(vx, vy)
     const t = Date.now() - startT.current
     e.extend({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
+    if (litBackend.current) markDirty(x, y, settingsRef.current.size)
     const sample: StrokeSample = { x, y, pressure, hasPressure: has, tiltX, tiltY, t }
     samples.current.push(sample)
     liveAppendRef.current?.([sample])
@@ -242,6 +282,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     redoSnaps.current.push(undoSnaps.current.pop()!)
     if (strokes.current.length) redoStrokes.current.push(strokes.current.pop()!)
     backend.restoreFrom(undoSnaps.current[undoSnaps.current.length - 1])
+    if (litBackend.current) dirty.current = { x0: 0, y0: 0, x1: ARTBOARD, y1: ARTBOARD }
     scheduleDisplay()
     notifyHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,6 +293,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     undoSnaps.current.push(snap)
     if (redoStrokes.current.length) strokes.current.push(redoStrokes.current.pop()!)
     backend.restoreFrom(snap)
+    if (litBackend.current) dirty.current = { x0: 0, y0: 0, x1: ARTBOARD, y1: ARTBOARD }
     scheduleDisplay()
     notifyHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,6 +305,9 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     strokes.current = []
     redoStrokes.current = []
     backend.clear()
+    heightBackend.current?.clear()
+    litBackend.current?.clear()
+    dirty.current = null
     undoSnaps.current = [backend.surface.makeImageSnapshot()]
     redoSnaps.current = []
     scheduleDisplay()
@@ -275,6 +320,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     if (eng.current || !alive.current) return
     backend.surface.getCanvas().drawImage(img, 0, 0)
     backend.flush()
+    if (litBackend.current) dirty.current = { x0: 0, y0: 0, x1: ARTBOARD, y1: ARTBOARD }
     undoSnaps.current.push(backend.surface.makeImageSnapshot())
     while (undoSnaps.current.length > MAX_UNDO + 1) undoSnaps.current.shift()!.dispose()
     redoSnaps.current.forEach((sn) => sn.dispose())
@@ -289,6 +335,14 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   const doSnapshot = useCallback((): SkImage | null => {
     if (!alive.current) return null
     backend.flush()
+    // Oil layers submit the LIT surface (relight the whole layer once for a correct composite).
+    const lit = litBackend.current, hb = heightBackend.current
+    if (lit && hb) {
+      hb.flush()
+      lit.litImpasto(backend, hb, DEFAULT_IMPASTO)
+      lit.flush()
+      return lit.surface.makeImageSnapshot()
+    }
     return backend.surface.makeImageSnapshot()
   }, [backend])
   useImperativeHandle(ref, () => ({ undo: doUndo, redo: doRedo, clear: doClear, snapshot: doSnapshot, mergeImage: doMergeImage }), [doUndo, doRedo, doClear, doSnapshot, doMergeImage])

@@ -1,10 +1,12 @@
 import type {
-  RendererBackend, GradientStop, Box, CompositeOp, RGBA, PixelRegion, BrushTexture,
+  RendererBackend, GradientStop, Box, CompositeOp, RGBA, PixelRegion, BrushTexture, ImpastoParams,
 } from '@drawie/core'
+import { IMPASTO_SKSL, impastoUniforms } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
   FilterMode, MipmapMode,
   type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage, type SkData,
+  type SkRuntimeEffect,
 } from '@shopify/react-native-skia'
 import { getTexturePixels } from './textures'
 
@@ -216,6 +218,44 @@ export class RNSkiaBackend implements RendererBackend {
     p.setBlendMode(BlendMode.SrcOver)
     p.setAlphaf(1)
     this.skc.drawImage(img, 0, 0, p)
+  }
+
+  // Impasto relief shader, compiled once (shared SkSL from @drawie/core). null = compile failed.
+  private static _impasto: SkRuntimeEffect | null | undefined
+  private static impastoEffect(): SkRuntimeEffect | null {
+    if (RNSkiaBackend._impasto === undefined) {
+      RNSkiaBackend._impasto = Skia.RuntimeEffect.Make(IMPASTO_SKSL) ?? null
+    }
+    return RNSkiaBackend._impasto
+  }
+
+  /**
+   * Phase-A impasto lighting: light THIS surface as the lit display from a flat `albedo` surface + a
+   * single-channel `height` surface, over `bbox` (whole surface if omitted). Writes the lit result with
+   * Src blend so the region is replaced (no compounding). Where height is flat the shader is a no-op, so
+   * non-oil pixels pass through unchanged. Snapshots are taken fresh each call and disposed.
+   */
+  litImpasto(albedo: RNSkiaBackend, height: RNSkiaBackend, params: ImpastoParams, bbox?: Box) {
+    const effect = RNSkiaBackend.impastoEffect()
+    if (!effect) return
+    const aImg = albedo.surface.makeImageSnapshot()
+    const hImg = height.surface.makeImageSnapshot()
+    const aSh = aImg.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Nearest, MipmapMode.None)
+    const hSh = hImg.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Linear, MipmapMode.None)
+    const uniforms = impastoUniforms(params, this.width, this.height)
+    const shader = effect.makeShaderWithChildren(uniforms, [aSh, hSh])
+    const p = Skia.Paint()
+    p.setShader(shader)
+    p.setBlendMode(BlendMode.Src) // replace, don't blend over the prior lit content
+    // Expand the rect by 1px so the Sobel neighbours at the edge are covered, then clamp to the surface.
+    const x0 = bbox ? Math.max(0, Math.floor(bbox.x - 1)) : 0
+    const y0 = bbox ? Math.max(0, Math.floor(bbox.y - 1)) : 0
+    const x1 = bbox ? Math.min(this.width, Math.ceil(bbox.x + bbox.w + 1)) : this.width
+    const y1 = bbox ? Math.min(this.height, Math.ceil(bbox.y + bbox.h + 1)) : this.height
+    this.skc.drawRect(Skia.XYWHRect(x0, y0, x1 - x0, y1 - y0), p)
+    this.cValid = false
+    aImg.dispose()
+    hImg.dispose()
   }
 
   /** Texture grain as a single repeat-tiled SkImage, built once per texture and cached. */
