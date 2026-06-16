@@ -4,10 +4,11 @@ import { Text } from '../ui/text'
 import { cn } from '../../lib/cn'
 import { LayersIcon, PlusIcon, ChevronDownIcon, EyeIcon, EyeOffIcon, TrashIcon, MergeDownIcon } from '../icons'
 import type { LayerMeta } from '../../ui/LayersPanel'
+import { tokenColors } from '../../theme/tokenColors'
 
-const MUTED = 'hsl(142, 6%, 40%)'
-const FG = 'hsl(142, 12%, 12%)'
-const DESTRUCTIVE = 'hsl(350, 80%, 55%)'
+const MUTED = tokenColors.mutedForeground
+const FG = tokenColors.foreground
+const DESTRUCTIVE = tokenColors.destructive
 
 /**
  * Floating Layers card (top-right of the editor) — mirrors the web Layers panel: header with

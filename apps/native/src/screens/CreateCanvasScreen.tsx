@@ -12,8 +12,9 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { ScreenHeader } from '../components/ui/screen-header'
 import { cn } from '../lib/cn'
+import { tokenColors } from '../theme/tokenColors'
 
-const SPINNER = 'hsl(142, 71%, 45%)'
+const SPINNER = tokenColors.primary
 
 // Mirrors the web mock lists (apps/web/src/mock) — kept local so native doesn't depend on the web app.
 const CATEGORIES = ['Landscape', 'Portrait', 'Abstract', 'Character', 'Surreal', 'Sci-Fi', 'Botanical', 'Architecture', 'Animal', 'Mythical']

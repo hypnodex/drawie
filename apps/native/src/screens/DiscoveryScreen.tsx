@@ -6,8 +6,9 @@ import { Text } from '../components/ui/text'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { cn } from '../lib/cn'
+import { tokenColors } from '../theme/tokenColors'
 
-const SPINNER = 'hsl(142, 71%, 45%)'
+const SPINNER = tokenColors.primary
 
 /**
  * Discovery — mirrors the web DiscoveryScreen's information architecture, adapted to mobile:

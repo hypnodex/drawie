@@ -7,8 +7,9 @@ import { CanvasCard } from '../ui/CanvasCard'
 import { Text } from '../components/ui/text'
 import { Button } from '../components/ui/button'
 import { ScreenHeader } from '../components/ui/screen-header'
+import { tokenColors } from '../theme/tokenColors'
 
-const SPINNER = 'hsl(142, 71%, 45%)' // brand primary, for the standalone RN ActivityIndicator
+const SPINNER = tokenColors.primary // brand primary, for the standalone RN ActivityIndicator
 
 /**
  * Profile / my-canvases — the signed-in user's stats, the canvases they've contributed to, and the

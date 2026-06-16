@@ -1,0 +1,10 @@
+{
+  "name": "@drawie/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Single-source design tokens. Canonical = web brand palette; build.mjs emits the native shadcn HSL :root (OKLCH→HSL). Zero runtime deps.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

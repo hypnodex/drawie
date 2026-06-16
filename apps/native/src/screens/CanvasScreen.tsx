@@ -6,8 +6,9 @@ import { useRealtimeCanvas } from '../hooks/useRealtimeCanvas'
 import { Text } from '../components/ui/text'
 import { Button } from '../components/ui/button'
 import { cn } from '../lib/cn'
+import { tokenColors } from '../theme/tokenColors'
 
-const SPINNER = 'hsl(142, 71%, 45%)'
+const SPINNER = tokenColors.primary
 
 /**
  * Canvas detail — the tile grid, LIVE. Subscribes to realtime tile + canvas changes so the grid

@@ -5,9 +5,10 @@ import { Text } from '../components/ui/text'
 import { Button } from '../components/ui/button'
 import { ScreenHeader } from '../components/ui/screen-header'
 import { cn } from '../lib/cn'
+import { tokenColors } from '../theme/tokenColors'
 
-const SPINNER = 'hsl(142, 71%, 45%)'
-const DESTRUCTIVE = 'hsl(350, 80%, 55%)'
+const SPINNER = tokenColors.primary
+const DESTRUCTIVE = tokenColors.destructive
 
 /**
  * Host console for a private canvas — lists everyone holding a tile and lets the host remove a

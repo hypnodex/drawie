@@ -6,10 +6,11 @@ import { Slider } from '../../ui/Slider'
 import { ColorPalette } from '../../ui/ColorPalette'
 import { TexturePicker } from '../../ui/TexturePicker'
 import { PressureIcon, WetIcon, BuildUpIcon } from '../icons'
+import { tokenColors } from '../../theme/tokenColors'
 
-const FG = 'hsl(142, 12%, 12%)'
-const MUTED = 'hsl(142, 6%, 40%)'
-const PRIMARY = 'hsl(142, 50%, 40%)'
+const FG = tokenColors.foreground
+const MUTED = tokenColors.mutedForeground
+const PRIMARY = tokenColors.primary
 
 /**
  * Per-tool settings — mirrors the web ToolSettingsPanel: each tool exposes a DIFFERENT set of

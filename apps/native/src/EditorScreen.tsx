@@ -22,9 +22,11 @@ import { LayersCard } from './components/editor/LayersCard'
 import { ToolSettingsPanel } from './components/editor/ToolSettings'
 import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon, ZoomInIcon, ZoomOutIcon, FitIcon } from './components/icons'
 
-// Icon colors (RN SVG needs concrete colors, not className tokens).
-const FG = 'hsl(142, 12%, 12%)'
-const DESTRUCTIVE = 'hsl(350, 80%, 55%)'
+import { tokenColors } from './theme/tokenColors'
+
+// Icon colors (RN SVG needs concrete colors, not className tokens) — resolved from the token source.
+const FG = tokenColors.foreground
+const DESTRUCTIVE = tokenColors.destructive
 
 const ARTBOARD = 2000 // must match DrawCanvas — the per-layer surface size we composite
 
