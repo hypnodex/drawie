@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { View, Pressable, TextInput, Keyboard } from 'react-native'
+import { View, Pressable } from 'react-native'
 import { Canvas, Rect, LinearGradient, vec } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated'
-import { Text } from '../components/ui/text'
 import { EyedropperIcon } from '../components/icons'
 import { tokenColors } from '../theme/tokenColors'
 
@@ -20,7 +19,6 @@ export function SvColorPicker({
   onEyedrop?: () => void
 }) {
   const { h, s, v } = hexToHsv(color)
-  const { r, g, b } = hexToRgb(color)
   const hueHex = hsvToHex(h, 1, 1)
 
   // Dims are STATE so the Skia <Canvas> actually renders once measured; mirrored to refs for the
@@ -44,11 +42,6 @@ export function SvColorPicker({
     if (!dragging.value) { svFx.value = s; svFy.value = 1 - v; hueF.value = h / 360 }
   }, [s, v, h, dragging, svFx, svFy, hueF])
 
-  // Blur any focused R/G/B field the instant a Pencil drag starts on the square/strip. While a TextInput
-  // holds focus, iPadOS Scribble hijacks the Apple Pencil (gray handwriting ink over the UI), so dropping
-  // focus on drag-start lets the Pencil pick a colour instead of triggering handwriting.
-  const dismissKb = useCallback(() => Keyboard.dismiss(), [])
-
   // Throttle the data commit to ~30 fps so a drag doesn't re-render the editor every frame.
   const lastCommit = useRef(0)
   const applySv = useCallback((fx: number, fy: number, throttle: boolean) => {
@@ -66,14 +59,14 @@ export function SvColorPicker({
 
   const svPan = useRef(
     Gesture.Pan().minDistance(0)
-      .onBegin((e) => { 'worklet'; dragging.value = true; runOnJS(dismissKb)(); const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
+      .onBegin((e) => { 'worklet'; dragging.value = true; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
       .onUpdate((e) => { 'worklet'; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
       .onEnd((e) => { 'worklet'; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, false) })
       .onFinalize(() => { 'worklet'; dragging.value = false }),
   ).current
   const huePan = useRef(
     Gesture.Pan().minDistance(0)
-      .onBegin((e) => { 'worklet'; dragging.value = true; runOnJS(dismissKb)(); const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
+      .onBegin((e) => { 'worklet'; dragging.value = true; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
       .onUpdate((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
       .onEnd((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, false) })
       .onFinalize(() => { 'worklet'; dragging.value = false }),
@@ -81,12 +74,6 @@ export function SvColorPicker({
 
   const svThumbStyle = useAnimatedStyle(() => ({ left: `${svFx.value * 100}%`, top: `${svFy.value * 100}%` }))
   const hueThumbStyle = useAnimatedStyle(() => ({ left: `${hueF.value * 100}%` }))
-
-  const setChannel = (key: 'r' | 'g' | 'b', text: string) => {
-    const n = clamp(parseInt(text.replace(/[^0-9]/g, '') || '0', 10), 0, 255)
-    const next = { r, g, b, [key]: n }
-    onChange(rgbToHex(next.r, next.g, next.b))
-  }
 
   return (
     <View className="gap-2">
@@ -125,22 +112,6 @@ export function SvColorPicker({
             <Animated.View pointerEvents="none" className="absolute h-5 w-5 rounded-full border-2 border-white shadow" style={[{ marginLeft: -10, backgroundColor: hueHex }, hueThumbStyle]} />
           </View>
         </GestureDetector>
-      </View>
-
-      <View className="flex-row gap-2">
-        {(['r', 'g', 'b'] as const).map((k, i) => (
-          <View key={k} className="flex-1 items-center gap-0.5">
-            <TextInput
-              value={String([r, g, b][i])}
-              onChangeText={(t) => setChannel(k, t)}
-              keyboardType="number-pad"
-              maxLength={3}
-              selectTextOnFocus
-              className="w-full rounded-lg border border-border bg-card py-1.5 text-center text-[15px] text-foreground"
-            />
-            <Text className="text-[10px] font-bold text-muted-foreground">{k.toUpperCase()}</Text>
-          </View>
-        ))}
       </View>
     </View>
   )

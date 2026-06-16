@@ -15,21 +15,34 @@ const MARKER = 'drawieDisableScribble'
 const SWIZZLE_BLOCK = `import UIKit
 import ObjectiveC
 
-// ─── Disable Apple Pencil "Scribble" app-wide (added by plugins/withDisableScribble.js) ──────────────
+// ─── Disable Apple Pencil handwriting app-wide (added by plugins/withDisableScribble.js) ──────────────
+// iPadOS 26 drives Pencil handwriting via PencilKit (PKTextInputInteraction on a global editing overlay),
+// not a class named "Scribble". Drop it so the Pencil draws/picks; keyboard typing stays intact.
+private func drawieIsHandwriting(_ interaction: UIInteraction) -> Bool {
+  let name = String(describing: type(of: interaction))
+  return name.contains("Scribble") || name.contains("Handwriting") || name.contains("PKTextInput")
+}
+
 extension UIView {
   @objc dynamic func drawie_addInteraction(_ interaction: UIInteraction) {
-    if String(describing: type(of: interaction)).contains("Scribble") { return }
+    if drawieIsHandwriting(interaction) { return }
     drawie_addInteraction(interaction) // swapped → original implementation
+  }
+
+  @objc dynamic func drawie_didMoveToWindow() {
+    drawie_didMoveToWindow() // swapped → original implementation
+    for i in interactions where drawieIsHandwriting(i) { removeInteraction(i) }
   }
 }
 
 // Swift global \`let\` is initialised lazily exactly once (thread-safe == dispatch_once).
 private let drawieDisableScribble: Void = {
-  guard
-    let original = class_getInstanceMethod(UIView.self, #selector(UIView.addInteraction(_:))),
-    let replacement = class_getInstanceMethod(UIView.self, #selector(UIView.drawie_addInteraction(_:)))
-  else { return }
-  method_exchangeImplementations(original, replacement)
+  func exchange(_ cls: AnyClass, _ a: Selector, _ b: Selector) {
+    guard let m1 = class_getInstanceMethod(cls, a), let m2 = class_getInstanceMethod(cls, b) else { return }
+    method_exchangeImplementations(m1, m2)
+  }
+  exchange(UIView.self, #selector(UIView.addInteraction(_:)), #selector(UIView.drawie_addInteraction(_:)))
+  exchange(UIView.self, #selector(UIView.didMoveToWindow), #selector(UIView.drawie_didMoveToWindow))
 }()
 
 `

@@ -83,12 +83,9 @@ export function ToolSettingsPanel({
       )}
 
       {tool !== 'bucket' && (
-        <Slider label="Size" value={settings.size} min={1} max={120} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
+        <Slider label="Size" value={settings.size} min={1} max={240} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
       )}
 
-      {tool !== 'eraser' && tool !== 'smudge' && tool !== 'bucket' && !waterOnly && (
-        <Slider label="Opacity" value={settings.opacity} min={0.05} max={1} step={0.01} onChange={(v) => onChange({ opacity: v })} format={pct} />
-      )}
       {meta.usesHardness && (
         <Slider label="Hardness" value={settings.hardness} min={0} max={1} step={0.01} onChange={(v) => onChange({ hardness: v })} format={pct} />
       )}
