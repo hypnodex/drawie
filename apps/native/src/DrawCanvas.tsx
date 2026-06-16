@@ -172,6 +172,11 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // The engine only needs them at stroke-begin, which always reads the current ref value.
   const toolRef = useRef(tool); toolRef.current = tool
   const settingsRef = useRef(settings); settingsRef.current = settings
+  // Race-free draw block: the gesture worklet reads this on every touch, so when an overlay (settings
+  // panel / mosaic view) is open the Pencil simply can't start a stroke — no gesture-recreation or
+  // pointerEvents quirks involved.
+  const blockedSv = useSharedValue(blocked)
+  useEffect(() => { blockedSv.value = blocked }, [blocked, blockedSv])
   // tiltX/tiltY come from the pen's stylusData and are RETAINED in the model (the engine
   // ignores tilt for now — closes the §9 gap; tools can use it later).
   const begin = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
@@ -307,8 +312,8 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     .enabled(active && !picking && !blocked)
     .maxPointers(1)
     .minDistance(0)
-    .onBegin((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
-    .onUpdate((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
+    .onBegin((e) => { if (e.stylusData == null || blockedSv.value) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
+    .onUpdate((e) => { if (e.stylusData == null || blockedSv.value) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
     .onFinalize(() => { runOnJS(end)() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [active, picking, blocked, begin, move, end])

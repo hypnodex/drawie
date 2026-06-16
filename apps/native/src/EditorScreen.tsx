@@ -373,10 +373,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                 <View
                   key={L.id}
                   style={[StyleSheet.absoluteFill, { zIndex: i, opacity: L.visible ? L.opacity : 0 }]}
-                  // While the settings/colour panel is open, the active layer ignores touches entirely
-                  // so the Pencil can't draw on or through the panel (or its sliders). pickMode closes
-                  // the panel first, so eyedropper taps still reach the canvas.
-                  pointerEvents={L.id === activeId && !settingsOpen ? 'auto' : 'none'}
+                  pointerEvents={L.id === activeId ? 'auto' : 'none'}
                 >
                   <DrawCanvas
                     ref={(h) => { if (h) layerRefs.current.set(L.id, h); else layerRefs.current.delete(L.id) }}
@@ -385,7 +382,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                     settings={s}
                     picking={pickMode && L.id === activeId}
                     onPick={onPickColor}
-                    blocked={settingsOpen}
+                    blocked={settingsOpen || mosaicOpen}
                     onHistory={(h) => setHistById((m) => ({ ...m, [L.id]: h }))}
                     onLiveStart={onLiveStart}
                     onLiveAppend={onLiveAppend}
