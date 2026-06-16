@@ -1,4 +1,5 @@
-import { Button, Modal } from '@heroui/react'
+import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Eyebrow } from '../ui/Eyebrow'
 
 interface Props {
@@ -10,39 +11,32 @@ interface Props {
 }
 
 /**
- * Shown when moderation prevents a Save / Submit. Purely informational — it
- * never touches the user's work; closing simply returns them to the canvas so
- * they can edit and try again.
+ * Shown when moderation prevents a Save / Submit. Purely informational — it never touches the
+ * user's work; closing returns them to the canvas to edit and retry. (Phase 2: HeroUI Modal → shadcn Dialog.)
  */
 export function ModerationBlockedDialog({ isOpen, onClose, message, isError }: Props) {
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop variant="blur">
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog>
-            <Modal.Header className="mb-2">
-              <Eyebrow variant="dot">Content review</Eyebrow>
-              <h2 className="mt-1 text-xl font-extrabold tracking-tight text-[var(--foreground)]">
-                {isError ? 'Couldn’t check this canvas' : 'Canvas can’t be saved'}
-              </h2>
-            </Modal.Header>
-            <Modal.Body>
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-[color-mix(in_oklab,var(--danger)_14%,transparent)] text-[var(--danger)]">
-                  <WarnIcon />
-                </span>
-                <p className="text-sm text-[var(--muted)] leading-relaxed">{message}</p>
-              </div>
-            </Modal.Body>
-            <Modal.Footer className="mt-6">
-              <Button variant="primary" size="md" fullWidth onPress={onClose}>
-                {isError ? 'Back to canvas' : 'Edit canvas'}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <Eyebrow variant="dot">Content review</Eyebrow>
+          <DialogTitle className="mt-1 text-xl font-extrabold tracking-tight">
+            {isError ? 'Couldn’t check this canvas' : 'Canvas can’t be saved'}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-[color-mix(in_oklab,var(--danger)_14%,transparent)] text-[var(--danger)]">
+            <WarnIcon />
+          </span>
+          <p className="text-sm text-[var(--muted)] leading-relaxed">{message}</p>
+        </div>
+        <DialogFooter>
+          <Button className="w-full" onClick={onClose}>
+            {isError ? 'Back to canvas' : 'Edit canvas'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

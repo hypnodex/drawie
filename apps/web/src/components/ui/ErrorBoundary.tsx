@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react'
-import { Button, Surface } from '@heroui/react'
+import { Button } from './button'
+import { Surface } from './Surface'
 import { Eyebrow } from './Eyebrow'
 import { Heading } from './Heading'
 
@@ -32,9 +33,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 {String(this.state.error?.message ?? this.state.error)}
           </pre>
           <Button
-            variant="primary"
-            size="md"
-            onPress={() => window.location.assign('/')}
+            onClick={() => window.location.assign('/')}
             className="mt-5 text-sm"
           >
             Reload

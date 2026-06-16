@@ -1,5 +1,8 @@
-import { Navigate, useParams } from 'react-router-dom'
-import { Breadcrumbs, Chip, Spinner, Surface } from '@heroui/react'
+import { Navigate, useParams, Link as RouterLink } from 'react-router-dom'
+import { Spinner } from '@/components/ui/Spinner'
+import { Surface } from '@/components/ui/Surface'
+import { Badge } from '@/components/ui/badge'
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { getProfile } from '@drawie/data'
 import { listCanvases } from '@drawie/data'
 import { useAsync } from '../hooks/useAsync'
@@ -26,10 +29,13 @@ export default function UserProfileScreen() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-10 sm:py-14">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/">Discover</Breadcrumbs.Item>
-        <Breadcrumbs.Item href={`/profile/${user.id}`}>{user.name}</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/">Discover</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>{user.name}</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <Surface
         variant="secondary"
@@ -40,7 +46,7 @@ export default function UserProfileScreen() {
           <div className="flex items-center gap-3 flex-wrap">
             <Heading level={1} size="lg">{user.name}</Heading>
             {user.isPremium && (
-              <Chip color="accent" variant="primary" size="md">Pro</Chip>
+              <Badge>Pro</Badge>
             )}
           </div>
           <p className="mt-1 text-sm text-[var(--muted)]">@{user.id}</p>

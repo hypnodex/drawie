@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Modal, Spinner, Tooltip } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/Spinner'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Canvas, CanvasHandle } from '../components/Canvas'
 import { BottomToolbar } from '../components/editor/BottomToolbar'
 import { ToolSettingsPanel } from '../components/editor/ToolSettings'
@@ -318,7 +321,7 @@ export default function DrawingScreen({
     <div className="relative h-screen w-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
       {/* Top bar: leave + submit */}
       <div className="absolute top-0 left-0 right-0 z-30 flex items-start justify-between gap-3 p-4 pointer-events-none">
-        <Button variant="secondary" size="md" onPress={() => setLeaveOpen(true)} className="pointer-events-auto">
+        <Button variant="secondary" onClick={() => setLeaveOpen(true)} className="pointer-events-auto">
           ← Leave
         </Button>
 
@@ -333,28 +336,28 @@ export default function DrawingScreen({
         <div className="flex items-center gap-2 pointer-events-auto">
           <CoverageGauge pct={coveragePct} met={coverageMet} />
           {coverageMet ? (
-            <Button variant="primary" size="md" onPress={onSubmit} isDisabled={moderation.isChecking}>
+            <Button variant="default" onClick={onSubmit} disabled={moderation.isChecking}>
               {moderation.isChecking
                 ? <><Spinner size="sm" /> Checking…</>
                 : <><SendIcon width={16} height={16} /> Submit</>}
             </Button>
           ) : (
             <Tooltip>
-              <Tooltip.Trigger>
+              <TooltipTrigger asChild>
                 <span className="inline-flex">
-                  <Button variant="primary" size="md" isDisabled aria-disabled="true">
+                  <Button variant="default" disabled aria-disabled="true">
                     <SendIcon width={16} height={16} /> Submit
                   </Button>
                 </span>
-              </Tooltip.Trigger>
-              <Tooltip.Content>
+              </TooltipTrigger>
+              <TooltipContent>
                 Fill at least {MIN_SUBMIT_COVERAGE}% of the artboard to submit
                 <br />
                 <span className="opacity-60">currently {Math.round(coveragePct)}%</span>
-              </Tooltip.Content>
+              </TooltipContent>
             </Tooltip>
           )}
-          <Button variant="secondary" size="md" onPress={() => setSaveConfirmOpen(true)} isDisabled={moderation.isChecking}>
+          <Button variant="secondary" onClick={() => setSaveConfirmOpen(true)} disabled={moderation.isChecking}>
             <SaveIcon width={16} height={16} /> {saveJustDone ? 'Saved ✓' : 'Save'}
           </Button>
         </div>
@@ -448,57 +451,45 @@ export default function DrawingScreen({
       />
 
       {/* Leave dialog */}
-      <Modal isOpen={leaveOpen} onOpenChange={(open) => !open && setLeaveOpen(false)}>
-        <Modal.Backdrop variant="blur">
-          <Modal.Container size="sm" placement="center">
-            <Modal.Dialog>
-              <Modal.Header className="mb-2">
-                <Eyebrow variant="dot">Leaving</Eyebrow>
-                <h2 className="mt-1 text-xl font-extrabold tracking-tight">Save or discard?</h2>
-              </Modal.Header>
-              <Modal.Body>
-                <p className="text-sm text-[var(--muted)]">
-                  Your tile is in progress. Save it as a draft and come back later, or discard
-                  everything you've drawn so far.
-                </p>
-              </Modal.Body>
-              <Modal.Footer className="mt-6 flex flex-col gap-2 w-full">
-                <Button variant="primary" size="md" fullWidth onPress={onLeaveSave} isDisabled={moderation.isChecking}>
-                  {moderation.isChecking ? <><Spinner size="sm" /> Checking…</> : 'Save & leave'}
-                </Button>
-                <Button variant="secondary" size="md" fullWidth onPress={onLeaveDiscard} isDisabled={moderation.isChecking}>Discard & leave</Button>
-                <Button variant="ghost" size="md" fullWidth onPress={() => setLeaveOpen(false)}>Stay drawing</Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      <Dialog open={leaveOpen} onOpenChange={(o) => { if (!o && moderation.isChecking) return; setLeaveOpen(o) }}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <DialogHeader className="mb-2">
+            <Eyebrow variant="dot">Leaving</Eyebrow>
+            <DialogTitle className="mt-1 text-xl font-extrabold tracking-tight">Save or discard?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--muted)]">
+            Your tile is in progress. Save it as a draft and come back later, or discard
+            everything you've drawn so far.
+          </p>
+          <DialogFooter className="mt-4 flex-col sm:flex-col gap-2 w-full">
+            <Button variant="default" className="w-full" onClick={onLeaveSave} disabled={moderation.isChecking}>
+              {moderation.isChecking ? <><Spinner size="sm" /> Checking…</> : 'Save & leave'}
+            </Button>
+            <Button variant="secondary" className="w-full" onClick={onLeaveDiscard} disabled={moderation.isChecking}>Discard & leave</Button>
+            <Button variant="ghost" className="w-full" onClick={() => setLeaveOpen(false)}>Stay drawing</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Save confirm dialog */}
-      <Modal isOpen={saveConfirmOpen} onOpenChange={(open) => !open && setSaveConfirmOpen(false)}>
-        <Modal.Backdrop variant="blur">
-          <Modal.Container size="sm" placement="center">
-            <Modal.Dialog>
-              <Modal.Header className="mb-2">
-                <Eyebrow variant="dot">Save draft</Eyebrow>
-                <h2 className="mt-1 text-xl font-extrabold tracking-tight">Save current progress?</h2>
-              </Modal.Header>
-              <Modal.Body>
-                <p className="text-sm text-[var(--muted)]">
-                  Your layers, tool settings, and recent colors will be stored locally. You can pick
-                  up exactly where you left off the next time you open this tile.
-                </p>
-              </Modal.Body>
-              <Modal.Footer className="mt-6 flex flex-col gap-2 w-full">
-                <Button variant="primary" size="md" fullWidth onPress={handleSaveConfirmed} isDisabled={moderation.isChecking}>
-                  {moderation.isChecking ? <><Spinner size="sm" /> Checking content…</> : 'Save draft'}
-                </Button>
-                <Button variant="ghost" size="md" fullWidth onPress={() => setSaveConfirmOpen(false)} isDisabled={moderation.isChecking}>Cancel</Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      <Dialog open={saveConfirmOpen} onOpenChange={(o) => { if (!o && moderation.isChecking) return; setSaveConfirmOpen(o) }}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <DialogHeader className="mb-2">
+            <Eyebrow variant="dot">Save draft</Eyebrow>
+            <DialogTitle className="mt-1 text-xl font-extrabold tracking-tight">Save current progress?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--muted)]">
+            Your layers, tool settings, and recent colors will be stored locally. You can pick
+            up exactly where you left off the next time you open this tile.
+          </p>
+          <DialogFooter className="mt-4 flex-col sm:flex-col gap-2 w-full">
+            <Button variant="default" className="w-full" onClick={handleSaveConfirmed} disabled={moderation.isChecking}>
+              {moderation.isChecking ? <><Spinner size="sm" /> Checking content…</> : 'Save draft'}
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={() => setSaveConfirmOpen(false)} disabled={moderation.isChecking}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Moderation-blocked dialog (Save / Submit) — work is never touched */}
       <ModerationBlockedDialog

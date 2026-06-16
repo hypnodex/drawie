@@ -1,5 +1,9 @@
-import { useSearchParams } from 'react-router-dom'
-import { Alert, Breadcrumbs, Button, Chip, Surface } from '@heroui/react'
+import { useSearchParams, Link as RouterLink } from 'react-router-dom'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Surface } from '@/components/ui/Surface'
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { ButtonLink } from '../components/ui/ButtonLink'
 import { useAuth } from '../state/AuthContext'
 import { Heading } from '../components/ui/Heading'
@@ -88,10 +92,13 @@ export default function PremiumScreen() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-10 sm:py-14">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href={user ? '/dashboard' : '/'}>{user ? 'Dashboard' : 'Discover'}</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/premium">Premium</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to={user ? '/dashboard' : '/'}>{user ? 'Dashboard' : 'Discover'}</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>Premium</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <Surface variant="tertiary" className="mt-6 rounded-[var(--radius)] overflow-hidden">
@@ -99,12 +106,9 @@ export default function PremiumScreen() {
 
           {/* copy */}
           <div className="flex-1 min-w-0">
-            <Chip
-              color="accent" variant="primary" size="sm"
-              className="mb-5 uppercase tracking-widest text-[10px] font-bold"
-            >
+            <Badge className="mb-5 uppercase tracking-widest text-[10px] font-bold">
               Pro tier
-            </Chip>
+            </Badge>
 
             <Heading level={1} size="xl">
               Found bigger.<br />
@@ -125,17 +129,15 @@ export default function PremiumScreen() {
             <div className="mt-8 flex flex-wrap items-center gap-4">
               {isPremium ? (
                 <>
-                  <Alert status="success" className="flex-none sm:max-w-sm">
-                    <Alert.Content>
-                      <Alert.Title>You're a Premium member</Alert.Title>
-                    </Alert.Content>
+                  <Alert variant="success" className="flex-none sm:max-w-sm">
+                    <AlertTitle>You're a Premium member</AlertTitle>
                   </Alert>
-                  <Button variant="secondary" size="lg" onPress={() => setIsPremium(false)}>
+                  <Button variant="secondary" size="lg" onClick={() => setIsPremium(false)}>
                     Turn off (demo)
                   </Button>
                 </>
               ) : user ? (
-                <Button variant="primary" size="lg" onPress={() => setIsPremium(true)}>
+                <Button variant="default" size="lg" onClick={() => setIsPremium(true)}>
                   Enable Premium (demo) →
                 </Button>
               ) : (
@@ -226,12 +228,9 @@ export default function PremiumScreen() {
       {/* ── Bottom CTA ────────────────────────────────────────────────────── */}
       {!isPremium && (
         <Surface variant="tertiary" className="mt-10 rounded-[var(--radius)] p-8 sm:p-14 flex flex-col items-center text-center">
-          <Chip
-            color="accent" variant="primary" size="sm"
-            className="mb-5 uppercase tracking-widest text-[10px] font-bold"
-          >
+          <Badge className="mb-5 uppercase tracking-widest text-[10px] font-bold">
             Try it now
-          </Chip>
+          </Badge>
 
           <Heading level={2} size="lg" className="max-w-lg">
             Ready to draw<br />
@@ -245,7 +244,7 @@ export default function PremiumScreen() {
 
           <div className="mt-8">
             {user ? (
-              <Button variant="primary" size="lg" onPress={() => setIsPremium(true)}>
+              <Button variant="default" size="lg" onClick={() => setIsPremium(true)}>
                 Enable Premium (demo) →
               </Button>
             ) : (
@@ -304,10 +303,9 @@ function ProPlanCard({
       <div className="px-6 py-6 border-b border-[var(--accent)]/20 bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]">
         <div className="flex items-center justify-between mb-3">
           <Eyebrow className="text-[var(--accent)] font-bold">Pro</Eyebrow>
-          <Chip color="accent" variant="primary" size="sm"
-            className="text-[9px] uppercase tracking-widest font-bold">
+          <Badge className="text-[9px] uppercase tracking-widest font-bold">
             Most popular
-          </Chip>
+          </Badge>
         </div>
         <div className="flex items-baseline gap-1.5">
           <span className="text-4xl font-extrabold text-[var(--foreground)] tracking-tight">$9</span>
@@ -329,15 +327,15 @@ function ProPlanCard({
       <div className="px-6 pb-6 pt-4">
         {isPremium ? (
           <>
-            <Alert status="success" className="mb-3">
-              <Alert.Content><Alert.Title>You're on Pro</Alert.Title></Alert.Content>
+            <Alert variant="success" className="mb-3">
+              <AlertTitle>You're on Pro</AlertTitle>
             </Alert>
-            <Button variant="secondary" size="md" fullWidth onPress={onDisable}>
+            <Button variant="secondary" className="w-full" onClick={onDisable}>
               Turn off (demo)
             </Button>
           </>
         ) : hasUser ? (
-          <Button variant="primary" size="lg" fullWidth onPress={onEnable}>
+          <Button variant="default" size="lg" className="w-full" onClick={onEnable}>
             Enable Premium (demo) →
           </Button>
         ) : (
@@ -376,12 +374,12 @@ function CellContent({ def, pro = false }: { def: CellDef; pro?: boolean }) {
     case 'text':
       return <span className="text-sm text-[var(--muted)]">{def.label}</span>
     case 'chip':
-      return <Chip color="accent" variant="primary" size="sm">{def.label}</Chip>
+      return <Badge>{def.label}</Badge>
     case 'coming':
       return (
-        <Chip color="default" variant="secondary" size="sm" className="text-[var(--muted)] text-[10px]">
+        <Badge variant="secondary" className="text-[var(--muted)] text-[10px]">
           Coming soon
-        </Chip>
+        </Badge>
       )
   }
 }

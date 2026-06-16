@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Input } from '@heroui/react'
+import { Input } from '../ui/input'
 
 const PRESET_PALETTE = [
   '#0a0b0e', '#ffffff', '#ef476f', '#ffd166',

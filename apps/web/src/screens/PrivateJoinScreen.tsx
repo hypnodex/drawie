@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Spinner, Surface } from '@heroui/react'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/Spinner'
+import { Surface } from '@/components/ui/Surface'
 import DrawingScreen from './DrawingScreen'
 import { supabase } from '@drawie/data'
 import { useAuth } from '../state/AuthContext'
@@ -134,7 +136,7 @@ export default function PrivateJoinScreen() {
                 className="h-11 px-3 rounded-xl bg-[var(--surface)] text-sm text-[var(--foreground)] border border-[var(--separator)] outline-none focus:border-[var(--accent)]"
               />
             </div>
-            <Button type="submit" variant="primary" size="md" fullWidth className="mt-1">
+            <Button type="submit" variant="default" className="mt-1 w-full">
               Join &amp; start drawing →
             </Button>
           </form>
@@ -191,7 +193,7 @@ function Panel({ title, body, action }: { title: string; body: string; action?: 
         <Heading level={1} size="md">{title}</Heading>
         <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">{body}</p>
         {action && (
-          <Button variant="primary" size="md" className="mt-6" onPress={action.onPress}>{action.label}</Button>
+          <Button variant="default" className="mt-6" onClick={action.onPress}>{action.label}</Button>
         )}
       </Surface>
     </Centered>

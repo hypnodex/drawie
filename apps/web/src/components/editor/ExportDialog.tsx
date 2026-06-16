@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Chip, Modal } from '@heroui/react'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import type { Canvas } from '@drawie/data'
 import { useAuth } from '../../state/AuthContext'
 import { Eyebrow } from '../ui/Eyebrow'
@@ -75,75 +77,62 @@ export function ExportDialog({ isOpen, onClose, canvas }: Props) {
   }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && close()}>
-      <Modal.Backdrop variant="blur">
-        <Modal.Container size="md" placement="center">
-          <Modal.Dialog>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Eyebrow variant="dot">Export artwork</Eyebrow>
+              <DialogTitle className="mt-1.5 text-xl font-extrabold tracking-tight">
+                {canvas.title}
+              </DialogTitle>
+            </div>
+            <Badge className="shrink-0 mt-1">Completed</Badge>
+          </div>
+        </DialogHeader>
 
-            <Modal.Header className="mb-2">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <Eyebrow variant="dot">Export artwork</Eyebrow>
-                  <h2 className="mt-1.5 text-xl font-extrabold tracking-tight text-[var(--foreground)]">
-                    {canvas.title}
-                  </h2>
-                </div>
-                <Chip color="success" variant="primary" size="sm" className="shrink-0 mt-1">
-                  Completed
-                </Chip>
+        <div className="flex flex-col gap-2.5">
+          {TIERS.map((tier) => {
+            const locked = !tier.free && !isPremium
+            return (
+              <TierCard
+                key={tier.id}
+                tier={tier}
+                selected={tierId === tier.id}
+                locked={locked}
+                onSelect={() => { if (!locked) setTierId(tier.id) }}
+                onUpgrade={() => { close(); nav('/premium?source=export') }}
+              />
+            )
+          })}
+
+          {exportState === 'done' && (
+            <div className="mt-1 p-4 rounded-2xl flex items-center justify-between gap-3 bg-[color-mix(in_oklab,var(--success)_10%,transparent)]">
+              <div>
+                <p className="text-sm font-bold text-[var(--foreground)]">Export ready</p>
+                <p className="text-xs text-[var(--muted)] font-mono mt-0.5">
+                  {selectedTier.dimensions} · {selectedTier.format}
+                </p>
               </div>
-            </Modal.Header>
+              <Button size="sm" onClick={close}>
+                Download ↓
+              </Button>
+            </div>
+          )}
+        </div>
 
-            <Modal.Body className="flex flex-col gap-2.5">
-              {TIERS.map((tier) => {
-                const locked = !tier.free && !isPremium
-                return (
-                  <TierCard
-                    key={tier.id}
-                    tier={tier}
-                    selected={tierId === tier.id}
-                    locked={locked}
-                    onSelect={() => { if (!locked) setTierId(tier.id) }}
-                    onUpgrade={() => { close(); nav('/premium?source=export') }}
-                  />
-                )
-              })}
-
-              {exportState === 'done' && (
-                <div className="mt-1 p-4 rounded-2xl flex items-center justify-between gap-3 bg-[color-mix(in_oklab,var(--success)_10%,transparent)]">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--foreground)]">Export ready</p>
-                    <p className="text-xs text-[var(--muted)] font-mono mt-0.5">
-                      {selectedTier.dimensions} · {selectedTier.format}
-                    </p>
-                  </div>
-                  <Button variant="primary" size="sm" onPress={close}>
-                    Download ↓
-                  </Button>
-                </div>
-              )}
-            </Modal.Body>
-
-            <Modal.Footer className="mt-4 flex items-center justify-between gap-3">
-              <Button variant="ghost" size="md" onPress={close}>Cancel</Button>
-              {exportState !== 'done' && (
-                <Button
-                  variant="primary"
-                  size="md"
-                  onPress={handleExport}
-                  isDisabled={exportState === 'preparing'}
-                >
-                  {exportState === 'preparing'
-                    ? 'Preparing…'
-                    : `Export ${selectedTier.dimensions} →`}
-                </Button>
-              )}
-            </Modal.Footer>
-
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+        <DialogFooter className="flex-row items-center justify-between gap-3 sm:justify-between">
+          <Button variant="ghost" onClick={close}>Cancel</Button>
+          {exportState !== 'done' && (
+            <Button onClick={handleExport} disabled={exportState === 'preparing'}>
+              {exportState === 'preparing'
+                ? 'Preparing…'
+                : `Export ${selectedTier.dimensions} →`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -177,8 +166,8 @@ function TierCard({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-extrabold text-[var(--foreground)]">{tier.label}</span>
           {tier.free
-            ? <Chip color="default" variant="soft" size="sm">Free</Chip>
-            : <Chip color="accent" variant="primary" size="sm">Premium</Chip>
+            ? <Badge variant="secondary">Free</Badge>
+            : <Badge>Premium</Badge>
           }
         </div>
         <p className="mt-0.5 font-mono text-[11px] text-[var(--muted)]">

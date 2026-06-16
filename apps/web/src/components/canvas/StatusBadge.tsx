@@ -1,4 +1,5 @@
-import { Chip } from '@heroui/react'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import type { CanvasStatus } from '@drawie/data'
 
 const LABEL: Record<CanvasStatus, string> = {
@@ -8,25 +9,21 @@ const LABEL: Record<CanvasStatus, string> = {
   'locked':          'Locked',
 }
 
-/**
- * HeroUI v3 Chip per spec — sentence case, no custom CSS.
- * Defaults are color="default", variant="secondary", size="md".
- */
-const VARIANT: Record<
-  CanvasStatus,
-  { color: 'default' | 'accent' | 'success'; variant: 'primary' | 'soft' | 'secondary' }
-> = {
-  'open':            { color: 'default', variant: 'soft' },
-  'almost-complete': { color: 'accent',  variant: 'primary' },
-  'completed':       { color: 'success', variant: 'primary' },
-  'locked':          { color: 'default', variant: 'secondary' },
+// (Phase 2: HeroUI Chip color/variant → shadcn Badge variant + token classes.)
+// completed = brand accent green ("done"); almost-complete = warning amber ("nearly there")
+// so the two end-states stay visually distinct, not just by label text.
+const VARIANT: Record<CanvasStatus, { variant: 'default' | 'secondary'; className?: string }> = {
+  'open':            { variant: 'secondary' },
+  'almost-complete': { variant: 'default', className: 'bg-[var(--warning)] text-[var(--warning-foreground)] border-transparent' },
+  'completed':       { variant: 'default' },
+  'locked':          { variant: 'secondary' },
 }
 
 export function StatusBadge({ status, className }: { status: CanvasStatus; className?: string }) {
-  const { color, variant } = VARIANT[status]
+  const v = VARIANT[status]
   return (
-    <Chip color={color} variant={variant} size="sm" className={className}>
+    <Badge variant={v.variant} className={cn(v.className, className)}>
       {LABEL[status]}
-    </Chip>
+    </Badge>
   )
 }

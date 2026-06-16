@@ -1,9 +1,24 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/Spinner'
+import { Surface } from '@/components/ui/Surface'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Alert, Badge, Breadcrumbs, Button, Checkbox, CheckboxGroup,
-  Chip, Input, Modal, Popover, Radio, RadioGroup, ScrollShadow,
-  Separator, Spinner, Surface, Tab, Table, Tabs, TextArea, Tooltip,
-} from '@heroui/react'
+  Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Heading } from '../components/ui/Heading'
 import { Eyebrow } from '../components/ui/Eyebrow'
 import { CategoryChip } from '../components/canvas/CategoryChip'
@@ -16,15 +31,15 @@ const SECTIONS = [
   { id: 'typography',     title: 'Typography' },
   { id: 'colors',         title: 'Color tokens' },
   { id: 'buttons',        title: 'Buttons' },
-  { id: 'chips',          title: 'Chips' },
-  { id: 'badge',          title: 'Badge' },
+  { id: 'chips',          title: 'Badge variants' },
+  { id: 'badge',          title: 'Anchored badge' },
   { id: 'form',           title: 'Form controls' },
   { id: 'surface',        title: 'Surface' },
   { id: 'feedback',       title: 'Feedback' },
   { id: 'navigation',     title: 'Navigation' },
-  { id: 'modal',          title: 'Modal' },
+  { id: 'modal',          title: 'Dialog' },
   { id: 'overlays',       title: 'Overlays' },
-  { id: 'scroll-shadow',  title: 'Scroll shadow' },
+  { id: 'scroll-shadow',  title: 'Scroll area' },
   { id: 'app-components', title: 'App components' },
 ]
 
@@ -33,15 +48,18 @@ const SECTIONS = [
 export default function DesignSystemScreen() {
   return (
     <div className="max-w-[1440px] mx-auto px-6 sm:px-10 py-10 sm:py-14">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/">Discover</Breadcrumbs.Item>
-        <Breadcrumbs.Item href="/design-system">Design System</Breadcrumbs.Item>
-      </Breadcrumbs>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/">Discover</RouterLink></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>Design System</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <header className="mt-6 mb-12">
         <Heading level={1} size="xl">Design System</Heading>
         <p className="mt-3 text-base text-[var(--muted)] max-w-2xl leading-relaxed">
-          Typography, color tokens, and every HeroUI and app-specific component
+          Typography, color tokens, and every shadcn and app-specific component
           used across Drawie — in one place.
         </p>
       </header>
@@ -189,68 +207,62 @@ function ColorSection() {
 
 function ButtonSection() {
   return (
-    <SectionBlock id="buttons" title="Buttons" description="HeroUI Button — all variants and sizes.">
+    <SectionBlock id="buttons" title="Buttons" description="shadcn Button — all variants and sizes.">
       <div className="flex flex-col gap-6">
         <Row label="Variants">
-          {(['primary','secondary','tertiary','ghost','danger-soft','danger'] as const).map((v) => (
-            <Button key={v} variant={v} size="md">{v}</Button>
+          {(['default','secondary','outline','ghost','destructive','link'] as const).map((v) => (
+            <Button key={v} variant={v}>{v}</Button>
           ))}
         </Row>
-        <Row label="Sizes (primary)">
-          {(['sm','md','lg'] as const).map((s) => (
-            <Button key={s} variant="primary" size={s}>{s}</Button>
+        <Row label="Sizes (default)">
+          {(['sm','default','lg'] as const).map((s) => (
+            <Button key={s} size={s}>{s}</Button>
           ))}
         </Row>
         <Row label="States">
-          <Button variant="primary" isDisabled>Disabled</Button>
-          <Button variant="secondary" isDisabled>Disabled</Button>
-          <Button variant="primary" isIconOnly aria-label="icon">★</Button>
-          <Button variant="secondary" fullWidth className="max-w-[200px]">Full width</Button>
+          <Button disabled>Disabled</Button>
+          <Button variant="secondary" disabled>Disabled</Button>
+          <Button size="icon" aria-label="icon">★</Button>
+          <Button variant="secondary" className="w-full max-w-[200px]">Full width</Button>
         </Row>
       </div>
     </SectionBlock>
   )
 }
 
-// ── 4. Chips ──────────────────────────────────────────────────────────────────
+// ── 4. Badge variants ──────────────────────────────────────────────────────────
 
 function ChipSection() {
   return (
-    <SectionBlock id="chips" title="Chips" description="HeroUI Chip — color × variant combinations used across the app.">
-      <div className="flex flex-col gap-5">
-        {(['default','accent','success','warning','danger'] as const).map((color) => (
-          <Row key={color} label={color}>
-            {(['primary','secondary','soft'] as const).map((variant) => (
-              <Chip key={variant} color={color} variant={variant} size="sm">{variant}</Chip>
-            ))}
-            <Chip color={color} variant="primary" size="sm">sm</Chip>
-            <Chip color={color} variant="primary" size="md">md</Chip>
-            <Chip color={color} variant="primary" size="lg">lg</Chip>
-          </Row>
+    <SectionBlock id="chips" title="Badge variants" description="shadcn Badge — the variants used across the app (replaces HeroUI Chip).">
+      <Row label="Variants">
+        {(['default','secondary','destructive','outline'] as const).map((v) => (
+          <Badge key={v} variant={v}>{v}</Badge>
         ))}
-      </div>
+      </Row>
     </SectionBlock>
   )
 }
 
-// ── 5. Badge ──────────────────────────────────────────────────────────────────
+// ── 5. Anchored badge ───────────────────────────────────────────────────────────
 
 function BadgeSection() {
+  const anchored = 'absolute -top-1 -right-1 h-4 min-w-4 justify-center rounded-full px-1 text-[10px] leading-none pointer-events-none'
   return (
-    <SectionBlock id="badge" title="Badge" description="HeroUI Badge.Anchor — used on the notification bell.">
+    <SectionBlock id="badge" title="Anchored badge" description="Badge absolutely positioned over a trigger — used on the notification bell.">
       <Row>
-        <Badge.Anchor>
-          <Button isIconOnly variant="secondary" aria-label="notifications">🔔</Button>
-          <Badge color="accent" size="sm" placement="top-right">3</Badge>
-        </Badge.Anchor>
-        <Badge.Anchor>
-          <Button isIconOnly variant="secondary" aria-label="messages">✉</Button>
-          <Badge color="danger" size="sm" placement="top-right">12</Badge>
-        </Badge.Anchor>
-        <Badge.Anchor>
+        <div className="relative inline-flex">
+          <Button size="icon" variant="secondary" aria-label="notifications">🔔</Button>
+          <Badge className={anchored}>3</Badge>
+        </div>
+        <div className="relative inline-flex">
+          <Button size="icon" variant="secondary" aria-label="messages">✉</Button>
+          <Badge variant="destructive" className={anchored}>12</Badge>
+        </div>
+        <div className="relative inline-flex">
           <div className="w-10 h-10 rounded-full bg-[var(--default)] flex items-center justify-center text-sm font-bold">A</div>
-          <Badge color="success" size="sm" placement="bottom-right">●</Badge>
-        </Badge.Anchor>
+          <Badge className="absolute -bottom-0.5 -right-0.5 h-3.5 min-w-3.5 justify-center rounded-full px-1 text-[9px] leading-none pointer-events-none border-[var(--success)] bg-[var(--success)] text-[var(--success-foreground)]">●</Badge>
+        </div>
       </Row>
     </SectionBlock>
   )
@@ -258,55 +270,62 @@ function BadgeSection() {
 
 // ── 6. Form controls ──────────────────────────────────────────────────────────
 
+const CHECK_TOOLS = ['brush', 'pencil', 'marker', 'eraser']
+
 function FormSection() {
-  const [check, setCheck] = useState(['brush'])
+  const [check, setCheck] = useState<string[]>(['brush'])
   const [radio, setRadio] = useState('public')
 
   return (
-    <SectionBlock id="form" title="Form controls" description="Input, TextArea, Checkbox, and Radio — as used in the wizard and filter bar.">
+    <SectionBlock id="form" title="Form controls" description="Input, Textarea, Checkbox, and Radio — as used in the wizard and filter bar.">
       <div className="grid sm:grid-cols-2 gap-8">
         <div className="flex flex-col gap-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">Input</p>
           <Input placeholder="Search canvases…" />
           <Input type="email" placeholder="your@email.com" />
           <Input placeholder="Disabled" disabled />
-          <TextArea rows={3} placeholder="Style guidance — strong directional lighting, no neon." />
+          <Textarea rows={3} placeholder="Style guidance — strong directional lighting, no neon." />
         </div>
 
         <div className="flex flex-col gap-6">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Checkbox group</p>
-            <CheckboxGroup value={check} onChange={(v) => setCheck(v as string[])}>
-              <div className="flex flex-wrap gap-3">
-                {['brush','pencil','marker','eraser'].map((t) => (
-                  <Checkbox key={t} value={t}>
-                    <Checkbox.Control />
-                    <Checkbox.Content className="capitalize">{t}</Checkbox.Content>
-                  </Checkbox>
-                ))}
-              </div>
-            </CheckboxGroup>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {CHECK_TOOLS.map((t) => {
+                const checked = check.includes(t)
+                return (
+                  <label key={t} className="inline-flex items-center gap-2 cursor-pointer text-sm text-[var(--foreground)] capitalize">
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(c) =>
+                        setCheck(c === true ? [...check, t] : check.filter((x) => x !== t))
+                      }
+                    />
+                    {t}
+                  </label>
+                )
+              })}
+            </div>
           </div>
 
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Radio group</p>
-            <RadioGroup value={radio} onChange={(v) => setRadio(v)}>
+            <RadioGroup value={radio} onValueChange={(v) => setRadio(v)}>
               <div className="flex flex-col gap-2">
                 {[
                   { value: 'public', label: 'Public', hint: 'Anyone can find and join.' },
                   { value: 'private', label: 'Private link', hint: 'Hidden from discovery.' },
                 ].map((opt) => (
-                  <Radio
+                  <label
                     key={opt.value}
-                    value={opt.value}
-                    className="flex items-start gap-3 p-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--surface-tertiary)] cursor-pointer data-[selected=true]:bg-[var(--surface)] data-[selected=true]:ring-1 data-[selected=true]:ring-[var(--accent)]"
+                    className="flex items-start gap-3 p-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--surface-tertiary)] cursor-pointer has-[[data-state=checked]]:ring-1 has-[[data-state=checked]]:ring-[var(--accent)]"
                   >
-                    <Radio.Control />
-                    <Radio.Content>
+                    <RadioGroupItem value={opt.value} className="mt-0.5" />
+                    <div>
                       <div className="text-sm font-bold text-[var(--foreground)]">{opt.label}</div>
                       <div className="text-[11px] text-[var(--muted)]">{opt.hint}</div>
-                    </Radio.Content>
-                  </Radio>
+                    </div>
+                  </label>
                 ))}
               </div>
             </RadioGroup>
@@ -321,7 +340,7 @@ function FormSection() {
 
 function SurfaceSection() {
   return (
-    <SectionBlock id="surface" title="Surface" description="HeroUI Surface — the three tinted levels used for layering content.">
+    <SectionBlock id="surface" title="Surface" description="Surface — the three tinted levels used for layering content.">
       <div className="grid sm:grid-cols-3 gap-4">
         {(['default','secondary','tertiary'] as const).map((v) => (
           <Surface key={v} variant={v} className="rounded-[var(--radius)] p-5">
@@ -341,11 +360,9 @@ function FeedbackSection() {
     <SectionBlock id="feedback" title="Feedback" description="Alert statuses and Spinner sizes.">
       <div className="flex flex-col gap-4">
         {(['success','warning','danger'] as const).map((status) => (
-          <Alert key={status} status={status}>
-            <Alert.Content>
-              <Alert.Title className="capitalize">{status}</Alert.Title>
-              <Alert.Description>This is a {status} alert message with a description.</Alert.Description>
-            </Alert.Content>
+          <Alert key={status} variant={status === 'danger' ? 'destructive' : status}>
+            <AlertTitle className="capitalize">{status}</AlertTitle>
+            <AlertDescription>This is a {status} alert message with a description.</AlertDescription>
           </Alert>
         ))}
 
@@ -373,26 +390,28 @@ function NavigationSection() {
       <div className="flex flex-col gap-8">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Breadcrumbs</p>
-          <Breadcrumbs>
-            <Breadcrumbs.Item href="/">Discover</Breadcrumbs.Item>
-            <Breadcrumbs.Item href="/canvas/canvas-world-mosaic">World Mosaic</Breadcrumbs.Item>
-            <Breadcrumbs.Item href="#">Design System</Breadcrumbs.Item>
-          </Breadcrumbs>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/">Discover</RouterLink></BreadcrumbLink></BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem><BreadcrumbLink asChild><RouterLink to="/canvas/canvas-world-mosaic">World Mosaic</RouterLink></BreadcrumbLink></BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem><BreadcrumbPage>Design System</BreadcrumbPage></BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </div>
 
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Tabs</p>
-          <Tabs
-            selectedKey={tab}
-            onSelectionChange={(k) => setTab(String(k))}
-            aria-label="Example tabs"
-          >
-            {['Contributed','Saved','Completed'].map((t) => (
-              <Tab key={t.toLowerCase()}>{t}</Tab>
-            ))}
+          <Tabs value={tab} onValueChange={setTab} aria-label="Example tabs">
+            <TabsList>
+              {['Contributed','Saved','Completed'].map((t) => (
+                <TabsTrigger key={t.toLowerCase()} value={t.toLowerCase()}>{t}</TabsTrigger>
+              ))}
+            </TabsList>
           </Tabs>
           <div className="mt-4 p-4 rounded-[var(--radius)] bg-[var(--surface-secondary)] text-sm text-[var(--muted)]">
-            Content for tab: <strong className="text-[var(--foreground)]">{String(tab)}</strong>
+            Content for tab: <strong className="text-[var(--foreground)]">{tab}</strong>
           </div>
         </div>
 
@@ -412,35 +431,30 @@ function NavigationSection() {
   )
 }
 
-// ── 10. Modal ─────────────────────────────────────────────────────────────────
+// ── 10. Dialog ────────────────────────────────────────────────────────────────
 
 function ModalSection() {
   const [open, setOpen] = useState(false)
   return (
-    <SectionBlock id="modal" title="Modal" description="HeroUI Modal — blur backdrop, centered container, header/body/footer compound.">
-      <Button variant="secondary" onPress={() => setOpen(true)}>Open demo modal</Button>
-
-      <Modal isOpen={open} onOpenChange={setOpen}>
-        <Modal.Backdrop variant="blur">
-          <Modal.Container size="md" placement="center">
-            <Modal.Dialog>
-              <Modal.Header className="mb-2">
-                <Eyebrow variant="dot">Demo</Eyebrow>
-                <h2 className="mt-1.5 text-xl font-extrabold tracking-tight">Modal title</h2>
-              </Modal.Header>
-              <Modal.Body>
-                <p className="text-sm text-[var(--muted)] leading-relaxed">
-                  This is the modal body. It supports any content — forms, rich text, alerts, or action confirmations.
-                </p>
-              </Modal.Body>
-              <Modal.Footer className="mt-6 flex items-center justify-between gap-3">
-                <Button variant="ghost" onPress={() => setOpen(false)}>Cancel</Button>
-                <Button variant="primary" onPress={() => setOpen(false)}>Confirm →</Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+    <SectionBlock id="modal" title="Dialog" description="shadcn Dialog — overlay, centered content, header/body/footer compound.">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="secondary">Open demo dialog</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader className="mb-2">
+            <Eyebrow variant="dot">Demo</Eyebrow>
+            <DialogTitle className="mt-1.5 text-xl font-extrabold tracking-tight">Dialog title</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--muted)] leading-relaxed">
+            This is the dialog body. It supports any content — forms, rich text, alerts, or action confirmations.
+          </p>
+          <DialogFooter className="mt-4 flex-row items-center justify-between gap-3 sm:justify-between">
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => setOpen(false)}>Confirm →</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SectionBlock>
   )
 }
@@ -449,20 +463,19 @@ function ModalSection() {
 
 function OverlaysSection() {
   const [popOpen, setPopOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <SectionBlock id="overlays" title="Overlays" description="Tooltip and Popover — both built on react-aria primitives.">
+    <SectionBlock id="overlays" title="Overlays" description="Tooltip and Popover — both built on Radix primitives.">
       <div className="flex flex-col gap-8">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Tooltip</p>
           <Row>
-            {(['top','bottom','left','right'] as const).map((placement) => (
-              <Tooltip key={placement}>
-                <Tooltip.Trigger>
-                  <Button variant="secondary" size="sm">{placement}</Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content placement={placement}>Tooltip on {placement}</Tooltip.Content>
+            {(['top','bottom','left','right'] as const).map((side) => (
+              <Tooltip key={side}>
+                <TooltipTrigger asChild>
+                  <Button variant="secondary" size="sm">{side}</Button>
+                </TooltipTrigger>
+                <TooltipContent side={side}>Tooltip on {side}</TooltipContent>
               </Tooltip>
             ))}
           </Row>
@@ -470,30 +483,29 @@ function OverlaysSection() {
 
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Popover</p>
-          <Popover isOpen={popOpen} onOpenChange={setPopOpen}>
-            <button
-              ref={triggerRef}
-              type="button"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--surface-secondary)] hover:bg-[var(--surface-tertiary)] text-sm font-bold transition-colors"
+          <Popover open={popOpen} onOpenChange={setPopOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--surface-secondary)] hover:bg-[var(--surface-tertiary)] text-sm font-bold transition-colors"
+              >
+                Open popover ↓
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-72 p-0 border-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] shadow-[var(--shadow-overlay)] outline-none"
             >
-              Open popover ↓
-            </button>
-            <Popover.Content
-              placement="bottom left"
-              className="w-72 p-0 overflow-hidden rounded-[var(--radius)] bg-[var(--overlay)] shadow-[var(--shadow-overlay)] outline-none"
-            >
-              <Popover.Dialog className="outline-none">
-                <div className="p-4">
-                  <Eyebrow variant="dot" className="mb-2">Popover</Eyebrow>
-                  <p className="text-sm text-[var(--muted)] leading-snug">
-                    Interactive overlay. You can include forms, lists, or custom content here.
-                  </p>
-                  <Button size="sm" variant="primary" className="mt-3" onPress={() => setPopOpen(false)}>
-                    Got it
-                  </Button>
-                </div>
-              </Popover.Dialog>
-            </Popover.Content>
+              <div className="p-4">
+                <Eyebrow variant="dot" className="mb-2">Popover</Eyebrow>
+                <p className="text-sm text-[var(--muted)] leading-snug">
+                  Interactive overlay. You can include forms, lists, or custom content here.
+                </p>
+                <Button size="sm" className="mt-3" onClick={() => setPopOpen(false)}>
+                  Got it
+                </Button>
+              </div>
+            </PopoverContent>
           </Popover>
         </div>
       </div>
@@ -501,12 +513,12 @@ function OverlaysSection() {
   )
 }
 
-// ── 12. Scroll shadow ─────────────────────────────────────────────────────────
+// ── 12. Scroll area ───────────────────────────────────────────────────────────
 
 function ScrollShadowSection() {
   return (
-    <SectionBlock id="scroll-shadow" title="Scroll shadow" description="HeroUI ScrollShadow — used in the notification panel for long lists.">
-      <ScrollShadow className="max-h-40">
+    <SectionBlock id="scroll-shadow" title="Scroll area" description="shadcn ScrollArea — used in the notification panel for long lists.">
+      <ScrollArea className="h-40">
         <div className="flex flex-col gap-2 py-1">
           {Array.from({ length: 12 }, (_, i) => (
             <div key={i} className="px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-sm text-[var(--muted)]">
@@ -514,7 +526,7 @@ function ScrollShadowSection() {
             </div>
           ))}
         </div>
-      </ScrollShadow>
+      </ScrollArea>
     </SectionBlock>
   )
 }
@@ -523,7 +535,7 @@ function ScrollShadowSection() {
 
 function AppComponentsSection() {
   return (
-    <SectionBlock id="app-components" title="App components" description="Drawie-specific components built on top of the HeroUI primitives.">
+    <SectionBlock id="app-components" title="App components" description="Drawie-specific components built on top of the shadcn primitives.">
       <div className="flex flex-col gap-8">
 
         <div>
@@ -562,39 +574,31 @@ function AppComponentsSection() {
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Table — plan comparison pattern</p>
           <Surface variant="secondary" className="rounded-[var(--radius)] overflow-hidden">
             <Table>
-              <Table.ScrollContainer>
-                <Table.Content aria-label="Component table example">
-                  <Table.Header>
-                    <Table.Column isRowHeader>Component</Table.Column>
-                    <Table.Column>Source</Table.Column>
-                    <Table.Column>Used in</Table.Column>
-                  </Table.Header>
-                  <Table.Body>
-                    {[
-                      ['Button',     'HeroUI',  'Everywhere'],
-                      ['Chip',       'HeroUI',  'Cards, badges, filters'],
-                      ['Modal',      'HeroUI',  'Export, leave dialog'],
-                      ['StatusBadge','Drawie',  'Canvas cards + detail'],
-                      ['VoteCard',   'Drawie',  'Canvas detail (completed)'],
-                      ['ProgressBar','Drawie',  'Canvas cards + detail'],
-                    ].map(([comp, src, used]) => (
-                      <Table.Row key={comp}>
-                        <Table.Cell className="font-medium text-[var(--foreground)]">{comp}</Table.Cell>
-                        <Table.Cell>
-                          <Chip
-                            color={src === 'HeroUI' ? 'accent' : 'default'}
-                            variant={src === 'HeroUI' ? 'primary' : 'soft'}
-                            size="sm"
-                          >
-                            {src}
-                          </Chip>
-                        </Table.Cell>
-                        <Table.Cell className="text-sm text-[var(--muted)]">{used}</Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Component</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Used in</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[
+                  ['Button',     'shadcn',  'Everywhere'],
+                  ['Badge',      'shadcn',  'Cards, badges, filters'],
+                  ['Dialog',     'shadcn',  'Export, leave dialog'],
+                  ['StatusBadge','Drawie',  'Canvas cards + detail'],
+                  ['VoteCard',   'Drawie',  'Canvas detail (completed)'],
+                  ['ProgressBar','Drawie',  'Canvas cards + detail'],
+                ].map(([comp, src, used]) => (
+                  <TableRow key={comp}>
+                    <TableCell className="font-medium text-[var(--foreground)]">{comp}</TableCell>
+                    <TableCell>
+                      <Badge variant={src === 'shadcn' ? 'default' : 'secondary'}>{src}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-[var(--muted)]">{used}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
             </Table>
           </Surface>
         </div>

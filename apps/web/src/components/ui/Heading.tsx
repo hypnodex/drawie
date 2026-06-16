@@ -1,4 +1,3 @@
-import { Typography } from '@heroui/react'
 import type { ReactNode } from 'react'
 
 type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
@@ -21,14 +20,14 @@ interface Props {
 }
 
 /**
- * Editorial display heading — HeroUI Typography.Heading with project tracking
- * + Figtree weight. Pass `level={2}` for an h2 etc. Visual size is independent
- * via the `size` prop.
+ * Editorial display heading — project tracking + Figtree weight. Pass `level={2}`
+ * for an h2 etc.; visual size is independent via the `size` prop. (Phase 2: was
+ * HeroUI Typography.Heading; now a plain semantic heading — no component lib.)
  */
 export function Heading({ level = 1, size = 'lg', className = '', children }: Props) {
+  const Tag = `h${level}` as keyof React.JSX.IntrinsicElements
   return (
-    <Typography.Heading
-      level={level}
+    <Tag
       className={[
         'font-display font-extrabold tracking-tight leading-[0.96] text-[var(--foreground)]',
         SIZE[size],
@@ -36,6 +35,6 @@ export function Heading({ level = 1, size = 'lg', className = '', children }: Pr
       ].join(' ')}
     >
       {children}
-    </Typography.Heading>
+    </Tag>
   )
 }

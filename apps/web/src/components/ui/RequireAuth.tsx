@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { Spinner } from '@heroui/react'
+import { Spinner } from './Spinner'
 import { useAuth } from '../../state/AuthContext'
 
 export function RequireAuth({ children }: { children: ReactNode }) {
