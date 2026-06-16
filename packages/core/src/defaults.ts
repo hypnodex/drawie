@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS: ToolSettingsMap = {
   eraser:     { color: '#000000', size: 30, opacity: 1.0,  softness: 0.4, strength: 0.6,  pressureSim: false, wetPaint: false, ...COMMON },
   smudge:     { color: '#000000', size: 36, opacity: 1.0,  softness: 0.5, strength: 0.55, pressureSim: false, wetPaint: false, ...COMMON },
   waterdrop:  { color: 'transparent', size: 80, opacity: 0.7, softness: 0.5, strength: 0.6, pressureSim: false, wetPaint: false, ...COMMON },
+  impasto:    { color: '#c0563b', size: 42, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
 }
 
 export const DEFAULT_ASSIST: AssistSettings = {

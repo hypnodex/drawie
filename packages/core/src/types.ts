@@ -10,6 +10,7 @@ export type ToolId =
   | 'waterdrop'
   | 'drybrush'
   | 'inkbrush'
+  | 'impasto'
 
 export type BrushShape = 'circle' | 'square'
 

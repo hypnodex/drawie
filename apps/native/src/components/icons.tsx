@@ -91,6 +91,13 @@ export const WaterdropIcon = (p: IconProps) => (
     <Path d="M12 3.2C8.7 7.8 6.3 10.9 6.3 14.1a5.7 5.7 0 0 0 11.4 0C17.7 10.9 15.3 7.8 12 3.2z" />
   </Solid>
 )
+export const ImpastoIcon = (p: IconProps) => (
+  <Solid {...p}>
+    {/* thick raised paint swipe — a blob with an offset shadow ridge to read as depth */}
+    <Path d="M4.5 16.8c2.2-5 6.4-9.2 11.2-10.1 2.3-.4 4.3.9 4.3 3 0 4.3-5.2 8.5-11.4 9.6-2.5.4-4.8-.4-4.1-2.5z" opacity={0.9} />
+    <Path d="M6.2 15.2c1.9-3.6 5-6.5 8.8-7.3 1.5-.3 2.7.4 2.7 1.8 0 2.9-3.7 5.7-8.2 6.5-1.8.3-3.6-.1-3.3-1z" />
+  </Solid>
+)
 
 // ── Action glyphs (stroke) ───────────────────────────────────────────────────
 export const UndoIcon = (p: IconProps) => (<Stroke {...p}><Path d="M9 14L4 9l5-5" /><Path d="M4 9h10a6 6 0 010 12H9" /></Stroke>)
@@ -134,4 +141,5 @@ export const TOOL_ICON: Record<ToolId, (p: IconProps) => React.ReactElement> = {
   eraser: EraserIcon,
   smudge: SmudgeIcon,
   waterdrop: WaterdropIcon,
+  impasto: ImpastoIcon,
 }

@@ -268,3 +268,9 @@ export const WaterdropIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 3.2C8.7 7.8 6.3 10.9 6.3 14.1a5.7 5.7 0 0 0 11.4 0C17.7 10.9 15.3 7.8 12 3.2z" />
   </svg>
 )
+export const ImpastoIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...solid(p)}>
+    <path d="M4.5 16.8c2.2-5 6.4-9.2 11.2-10.1 2.3-.4 4.3.9 4.3 3 0 4.3-5.2 8.5-11.4 9.6-2.5.4-4.8-.4-4.1-2.5z" opacity={0.9} />
+    <path d="M6.2 15.2c1.9-3.6 5-6.5 8.8-7.3 1.5-.3 2.7.4 2.7 1.8 0 2.9-3.7 5.7-8.2 6.5-1.8.3-3.6-.1-3.3-1z" />
+  </svg>
+)

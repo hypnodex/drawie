@@ -5,7 +5,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { ToolId, ToolSettings, ToolSettingsMap } from '@drawie/core'
 import {
   BrushIcon, PencilIcon, PenIcon, MarkerIcon, SprayIcon, EraserIcon, SmudgeIcon,
-  WaterdropIcon, DryBrushIcon, InkBrushIcon, UndoIcon, RedoIcon, TrashIcon, RevealIcon, CloseIcon,
+  WaterdropIcon, DryBrushIcon, InkBrushIcon, ImpastoIcon, UndoIcon, RedoIcon, TrashIcon, RevealIcon, CloseIcon,
   ChevronDownIcon,
 } from '../icons'
 
@@ -32,6 +32,7 @@ const TOOL_LIST: { id: ToolId; label: string; Icon: React.ComponentType<React.SV
   { id: 'brush',      label: 'Brush',      Icon: BrushIcon },
   { id: 'drybrush',   label: 'Dry Brush',  Icon: DryBrushIcon },
   { id: 'inkbrush',   label: 'Ink Brush',  Icon: InkBrushIcon },
+  { id: 'impasto',    label: 'Impasto',    Icon: ImpastoIcon },
   { id: 'pencil',     label: 'Pencil',     Icon: PencilIcon },
   { id: 'pen',        label: 'Ink Pen',    Icon: PenIcon },
   { id: 'marker',     label: 'Marker',     Icon: MarkerIcon },

@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, type ToolId, type ToolSettings } from '@drawie/core'
 export { DEFAULT_SETTINGS }
 
 export const TOOL_IDS: ToolId[] = [
-  'brush', 'drybrush', 'inkbrush', 'pencil', 'pen', 'marker', 'spray', 'eraser', 'smudge', 'waterdrop',
+  'brush', 'drybrush', 'inkbrush', 'impasto', 'pencil', 'pen', 'marker', 'spray', 'eraser', 'smudge', 'waterdrop',
 ]
 
 /**

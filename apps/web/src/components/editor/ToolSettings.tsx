@@ -43,6 +43,7 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
   eraser:     { name: 'Eraser',     subtitle: 'Remove from active tile',   usesColor: false, usesPressure: false, usesWet: false, usesSoftness: true,  usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   smudge:     { name: 'Smudge',     subtitle: 'Smear nearby pixels',       usesColor: false, usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
   waterdrop:  { name: 'Waterdrop',  subtitle: 'Spread wet colors outward', usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
+  impasto:    { name: 'Impasto',    subtitle: 'Thick raised paint, with depth', usesColor: true, usesPressure: true, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: true,  usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
 }
 
 export function ToolSettingsPanel({

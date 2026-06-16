@@ -232,6 +232,7 @@ export class StrokeEngine {
       case 'waterdrop':  return 0.9
       case 'drybrush':   return 0.05
       case 'inkbrush':   return 0.05
+      case 'impasto':    return 0.07
     }
   }
 
@@ -269,6 +270,7 @@ export class StrokeEngine {
       case 'waterdrop':  this.stampWaterdrop(point, r);  break
       case 'drybrush':   this.stampBristle(point, r, false); break
       case 'inkbrush':   this.stampBristle(point, r, true);  break
+      case 'impasto':    this.stampImpasto(point, r);    break
     }
     this.prevStampX = point.x
     this.prevStampY = point.y
@@ -292,6 +294,28 @@ export class StrokeEngine {
   private rgbToHex(r: number, g: number, b: number): string {
     const h = (n: number) => Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, '0')
     return `#${h(r)}${h(g)}${h(b)}`
+  }
+
+  /** Darken (amt<0) or lighten (amt>0) a hex colour toward black/white. Used by impasto's
+   *  shadow (darker) + highlight (lighter) to fake a raised paint edge. */
+  private shade(hex: string, amt: number): string {
+    const { r, g, b } = this.hexToRgb(hex)
+    if (amt < 0) { const k = 1 + amt; return this.rgbToHex(r * k, g * k, b * k) }
+    return this.rgbToHex(r + (255 - r) * amt, g + (255 - g) * amt, b + (255 - b) * amt)
+  }
+
+  // IMPASTO — opaque paint with faked depth: a darker shadow offset down-right + a lighter
+  // highlight offset up-left (light from top-left), with the colour on top. Overlapping stamps
+  // leave the shadow on the lower-right edge and the highlight on the upper-left, so a built-up
+  // stroke reads like a thick, raised ridge of real paint.
+  private stampImpasto(p: StrokePoint, r: number) {
+    const targetAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.55 + 0.45 * p.pressure) : 1)
+    const stampAlpha = this.applyDilution(0.55 * targetAlpha)
+    const { color, alpha } = this.resolveStamp(p, stampAlpha)
+    const off = Math.max(1, r * 0.2) // extrude depth scales with brush size
+    this.fillShape(p.x + off, p.y + off, r, this.shade(color, -0.45), alpha * 0.95)        // shadow (bottom-right)
+    this.fillShape(p.x - off * 0.65, p.y - off * 0.65, r * 0.9, this.shade(color, 0.55), alpha * 0.7) // highlight (top-left)
+    this.fillShape(p.x, p.y, r, color, alpha)                                              // paint body
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */
