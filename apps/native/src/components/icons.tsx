@@ -118,6 +118,8 @@ export const BuildUpIcon = (p: IconProps) => (
 export const ZoomInIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={11} cy={11} r={7} /><Path d="M21 21l-4.3-4.3" /><Path d="M11 8v6M8 11h6" /></Stroke>)
 export const ZoomOutIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={11} cy={11} r={7} /><Path d="M21 21l-4.3-4.3" /><Path d="M8 11h6" /></Stroke>)
 export const FitIcon = (p: IconProps) => (<Stroke {...p}><Path d="M4 9V5a1 1 0 011-1h4" /><Path d="M20 9V5a1 1 0 00-1-1h-4" /><Path d="M4 15v4a1 1 0 001 1h4" /><Path d="M20 15v4a1 1 0 01-1 1h-4" /></Stroke>)
+// Mosaic grid — "view the whole mosaic while drawing".
+export const GridIcon = (p: IconProps) => (<Stroke {...p}><Rect x={3} y={3} width={18} height={18} rx={2} /><Path d="M3 9h18M3 15h18M9 3v18M15 3v18" /></Stroke>)
 
 /** Tool → glyph, in the web's TOOL_LIST order. */
 export const TOOL_ICON: Record<ToolId, (p: IconProps) => React.ReactElement> = {

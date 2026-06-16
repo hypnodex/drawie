@@ -20,7 +20,8 @@ import { Text } from './components/ui/text'
 import { cn } from './lib/cn'
 import { LayersCard } from './components/editor/LayersCard'
 import { ToolSettingsPanel } from './components/editor/ToolSettings'
-import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon, ZoomInIcon, ZoomOutIcon, FitIcon } from './components/icons'
+import { MosaicGridSheet } from './components/editor/MosaicGridSheet'
+import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon, ZoomInIcon, ZoomOutIcon, FitIcon, GridIcon } from './components/icons'
 
 import { tokenColors } from './theme/tokenColors'
 
@@ -74,6 +75,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false) // brush-settings sheet, hidden by default (web-style)
+  const [mosaicOpen, setMosaicOpen] = useState(false) // "view the whole mosaic while drawing" (#2)
   const nextId = useRef(2)
   const layerRefs = useRef(new Map<number, DrawCanvasHandle>())
 
@@ -386,6 +388,11 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
           <Pressable onPress={zoomFit} hitSlop={4} className="h-11 w-11 items-center justify-center rounded-xl bg-card shadow-lg">
             <FitIcon size={20} color={FG} />
           </Pressable>
+          {!!canvasId && (
+            <Pressable onPress={() => setMosaicOpen(true)} hitSlop={4} className="mt-1 h-11 w-11 items-center justify-center rounded-xl bg-card shadow-lg">
+              <GridIcon size={20} color={FG} />
+            </Pressable>
+          )}
         </View>
 
         {/* Settings popover — opens above the dock when you tap the active tool (web pattern).
@@ -453,6 +460,10 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
           </ScrollView>
         </View>
       </View>
+
+      {mosaicOpen && !!canvasId && (
+        <MosaicGridSheet canvasId={canvasId} canvas={canvas} userTile={tile} onClose={() => setMosaicOpen(false)} />
+      )}
     </View>
   )
 }
