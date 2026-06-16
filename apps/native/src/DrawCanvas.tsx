@@ -164,6 +164,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // tiltX/tiltY come from the pen's stylusData and are RETAINED in the model (the engine
   // ignores tilt for now — closes the §9 gap; tools can use it later).
   const begin = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
+    if (tool === 'bucket') return // 'BG color' is applied at the editor level (the artboard paper), not painted into pixels
     const { x, y } = toArtboard(vx, vy)
     startT.current = Date.now()
     seed.current = (Math.random() * 0xffffffff) >>> 0

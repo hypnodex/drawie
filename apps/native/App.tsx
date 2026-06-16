@@ -2,7 +2,7 @@ import './src/supabase' // initialises the Supabase client — must run before a
 import { useEffect, useState } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, View, ActivityIndicator, Linking } from 'react-native'
+import { StyleSheet, View, ActivityIndicator, Linking, SafeAreaView } from 'react-native'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, joinPrivateCanvas, resolveHostToken, type Tile, type Canvas } from '@drawie/data'
 import { EditorScreen } from './src/EditorScreen'
@@ -170,8 +170,11 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.fill}>
-      <StatusBar style="auto" />
-      {content}
+      <StatusBar style="dark" />
+      {/* Global safe-area inset so every screen's header clears the iOS status bar (time/battery). */}
+      <SafeAreaView style={[styles.fill, { backgroundColor: '#f4f6f4' }]}>
+        {content}
+      </SafeAreaView>
     </GestureHandlerRootView>
   )
 }

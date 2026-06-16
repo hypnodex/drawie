@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { StyleSheet, View, Pressable, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, StatusBar, type LayoutChangeEvent } from 'react-native'
+import { StyleSheet, View, Pressable, ScrollView, ActivityIndicator, Alert, Image, type LayoutChangeEvent } from 'react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia'
@@ -76,6 +76,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false) // brush-settings sheet, hidden by default (web-style)
   const [mosaicOpen, setMosaicOpen] = useState(false) // "view the whole mosaic while drawing" (#2)
+  const [bgColor, setBgColor] = useState('#ffffff') // artboard background colour (the 'BG color' tool; re-applicable)
   const nextId = useRef(2)
   const layerRefs = useRef(new Map<number, DrawCanvasHandle>())
 
@@ -130,6 +131,9 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
 
   const s = settingsMap[tool]
   const patch = (p: Partial<ToolSettings>) => setSettingsMap((m) => ({ ...m, [tool]: { ...m[tool], ...p } }))
+  // 'BG color' tool: the picked colour IS the artboard background, applied live — change it any number
+  // of times (it sits behind the art and never covers strokes), unlike a one-shot pixel fill.
+  useEffect(() => { if (tool === 'bucket') setBgColor(s.color) }, [tool, s.color])
   const hist = histById[activeId] ?? { canUndo: false, canRedo: false }
   const activeLayer = layers.find((L) => L.id === activeId) ?? layers[0]
   const ref = (id: number) => layerRefs.current.get(id)
@@ -183,6 +187,13 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
       if (!surface) throw new Error('Could not allocate a canvas surface.')
       const sc = surface.getCanvas()
       sc.clear(Skia.Color('rgba(0,0,0,0)')) // fresh surfaces aren't guaranteed blank (see RNSkiaBackend.createSurface)
+      // Background colour (the 'BG color' tool) — painted behind every layer. Skipped at the default
+      // white so untouched tiles stay transparent (existing behaviour).
+      if (bgColor.toLowerCase() !== '#ffffff') {
+        const bgPaint = Skia.Paint()
+        bgPaint.setColor(Skia.Color(bgColor))
+        sc.drawRect(Skia.XYWHRect(0, 0, ARTBOARD, ARTBOARD), bgPaint)
+      }
       const paint = Skia.Paint()
       for (const L of layers) {
         if (!L.visible) continue
@@ -293,8 +304,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     : []
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: tokenColors.background }}>
-      <StatusBar barStyle="dark-content" />
+    <View className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border bg-background px-3 pt-3 pb-2">
         <Pressable onPress={exitOrDiscard} hitSlop={8} disabled={submitting} className="w-24">
           <Text className="text-[15px] font-semibold text-foreground">← Leave</Text>
@@ -353,7 +363,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                 shadow (mirrors the web) so the active drawing area reads as the focus. */}
             <View
               className="border-2 border-primary"
-              style={{ position: 'absolute', left: sliver, top: sliver, width: inner, height: inner, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 8 }}
+              style={{ position: 'absolute', left: sliver, top: sliver, width: inner, height: inner, backgroundColor: bgColor, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 8 }}
             >
               {layers.map((L, i) => (
                 <View
@@ -469,6 +479,6 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
       {mosaicOpen && !!canvasId && (
         <MosaicGridSheet canvasId={canvasId} canvas={canvas} userTile={tile} onClose={() => setMosaicOpen(false)} />
       )}
-    </SafeAreaView>
+    </View>
   )
 }

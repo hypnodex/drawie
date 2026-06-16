@@ -353,19 +353,27 @@ export class StrokeEngine {
     const perpX = -dy, perpY = dx
     const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1)
     const a = this.applyDilution(baseAlpha)
-    // Smooth opaque paint body (soft round stamp that builds up to full) — the reference is creamy
-    // and soft-edged, not a dry bristle scatter.
-    this.fillShape(p.x, p.y, r, color, Math.min(1, a * 0.55))
-    // A few SOFT tonal streaks across the width → the gentle dragged-paint variation.
-    for (let i = -2; i <= 2; i++) {
-      const off = (i / 2) * r * 0.72
+    // Creamy opaque body that builds to full.
+    this.fillShape(p.x, p.y, r, color, Math.min(1, a * 0.6))
+    // VISIBLE dragged-paint ridges — alternating lighter/darker bands across the width, continuous
+    // along the stroke (noise indexed by travelled distance), so it reads as troweled paint not a flat brush.
+    const ridges = 7
+    for (let i = 0; i < ridges; i++) {
+      const t = (i / (ridges - 1)) * 2 - 1
+      const off = t * r * 0.8
       const sx = p.x + perpX * off
       const sy = p.y + perpY * off
-      const v = this.smoothNoise(this.bristleDist * 0.05 + i * 9.3, i * 3.1) - 0.5
-      this.fillShape(sx, sy, r * 0.26, this.shade(color, v * 0.28), a * 0.22)
+      const v = this.smoothNoise(this.bristleDist * 0.07 + i * 11.3, i * 2.7) - 0.5 // -0.5..0.5
+      this.fillShape(sx, sy, r * 0.2, this.shade(color, v * 0.5), a * 0.4)
     }
-    // Glossy sheen — one soft lighter streak offset to a side (wet-paint highlight).
-    this.fillShape(p.x + perpX * (-r * 0.42), p.y + perpY * (-r * 0.42), r * 0.3, this.shade(color, 0.5), a * 0.22)
+    // Bright glossy sheen — intermittent bright streaks toward the upper edge (wet-paint highlight).
+    for (let k = 0; k < 2; k++) {
+      const off = (-0.28 - k * 0.16) * r
+      const hv = this.smoothNoise(this.bristleDist * 0.06 + k * 7.1 + 3, k * 1.9)
+      if (hv > 0.42) this.fillShape(p.x + perpX * off, p.y + perpY * off, r * 0.16, this.shade(color, 0.78), a * 0.55)
+    }
+    // Darker lower edge → raised-paint depth.
+    this.fillShape(p.x + perpX * (r * 0.66), p.y + perpY * (r * 0.66), r * 0.2, this.shade(color, -0.4), a * 0.3)
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */
