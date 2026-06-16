@@ -54,7 +54,7 @@ const GRID_RATIOS: { id: AspectRatioId; label: string; sizes: { rows: number; co
 const TOOL_OPTIONS: { id: ToolId; label: string }[] = [
   { id: 'brush', label: 'Brush' }, { id: 'pencil', label: 'Pencil' },
   { id: 'pen', label: 'Ink Pen' }, { id: 'marker', label: 'Marker' },
-  { id: 'watercolor', label: 'Watercolor' }, { id: 'spray', label: 'Spray' },
+  { id: 'spray', label: 'Spray' },
   { id: 'eraser', label: 'Eraser' }, { id: 'smudge', label: 'Smudge' },
 ]
 
