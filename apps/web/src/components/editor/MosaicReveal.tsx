@@ -71,10 +71,11 @@ export function MosaicReveal({
               style={{
                 gridTemplateColumns: `repeat(${size.cols}, 1fr)`,
                 gridTemplateRows: `repeat(${size.rows}, 1fr)`,
-                // True aspect → square tiles even on non-square mosaics; cap to the viewport so the
-                // whole thing is visible without scrolling, with top/bottom breathing room.
+                // True aspect → SQUARE tiles even on non-square mosaics. Width is the smaller of 88vw and
+                // the width that keeps the height ≤ 74vh, so the whole mosaic fits with top/bottom padding.
                 aspectRatio: `${size.cols} / ${size.rows}`,
-                maxHeight: '74vh', maxWidth: '88vw', width: '100%', margin: '0 auto',
+                width: `min(88vw, ${(74 * size.cols / size.rows).toFixed(1)}vh)`,
+                margin: '0 auto',
                 gap: 3, padding: 3, backgroundColor: '#0a0b0e',
               }}
             >

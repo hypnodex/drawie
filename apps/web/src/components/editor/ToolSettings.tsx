@@ -112,7 +112,7 @@ export function ToolSettingsPanel({
         </Section>
       )}
 
-      {tool !== 'eraser' && tool !== 'smudge'
+      {tool !== 'eraser' && tool !== 'smudge' && tool !== 'bucket'
         && !(tool === 'waterdrop' && settings.color === 'transparent') && (
         <Section title="Opacity">
           <Slider min={0.05} max={1} step={0.01} value={settings.opacity}
