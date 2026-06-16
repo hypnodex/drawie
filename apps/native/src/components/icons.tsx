@@ -142,6 +142,9 @@ export const ZoomOutIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={11} cy=
 export const FitIcon = (p: IconProps) => (<Stroke {...p}><Path d="M4 9V5a1 1 0 011-1h4" /><Path d="M20 9V5a1 1 0 00-1-1h-4" /><Path d="M4 15v4a1 1 0 001 1h4" /><Path d="M20 15v4a1 1 0 01-1 1h-4" /></Stroke>)
 // Mosaic grid — "view the whole mosaic while drawing".
 export const GridIcon = (p: IconProps) => (<Stroke {...p}><Rect x={3} y={3} width={18} height={18} rx={2} /><Path d="M3 9h18M3 15h18M9 3v18M15 3v18" /></Stroke>)
+// Eyedropper — sample a colour from the canvas.
+export const EyedropperIcon = (p: IconProps) => (<Stroke {...p}><Path d="M19 5a2 2 0 0 0-2.8 0l-1.6 1.6-1-1-1.4 1.4 1 1L4 17.2V20h2.8l8.2-8.2 1 1 1.4-1.4-1-1L19 7.8A2 2 0 0 0 19 5z" /></Stroke>)
+export const PlusSmallIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={12} cy={12} r={9} /><Path d="M12 8v8M8 12h8" /></Stroke>)
 
 /** Tool → glyph, in the web's TOOL_LIST order. */
 export const TOOL_ICON: Record<ToolId, (p: IconProps) => React.ReactElement> = {

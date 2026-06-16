@@ -355,25 +355,24 @@ export class StrokeEngine {
     const a = this.applyDilution(baseAlpha)
     // Creamy opaque body that builds to full.
     this.fillShape(p.x, p.y, r, color, Math.min(1, a * 0.6))
-    // VISIBLE dragged-paint ridges — alternating lighter/darker bands across the width, continuous
-    // along the stroke (noise indexed by travelled distance), so it reads as troweled paint not a flat brush.
-    const ridges = 7
+    // MANY fine dragged bristle ridges (light/dark) — the troweled, streaky oil-paint texture from the refs.
+    const ridges = 11
     for (let i = 0; i < ridges; i++) {
       const t = (i / (ridges - 1)) * 2 - 1
-      const off = t * r * 0.8
+      const off = t * r * 0.88
       const sx = p.x + perpX * off
       const sy = p.y + perpY * off
-      const v = this.smoothNoise(this.bristleDist * 0.07 + i * 11.3, i * 2.7) - 0.5 // -0.5..0.5
-      this.fillShape(sx, sy, r * 0.2, this.shade(color, v * 0.5), a * 0.4)
+      const v = this.smoothNoise(this.bristleDist * 0.085 + i * 7.9, i * 3.3) - 0.5 // -0.5..0.5
+      this.fillShape(sx, sy, r * 0.13, this.shade(color, v * 0.6), a * 0.5)
     }
-    // Bright glossy sheen — intermittent bright streaks toward the upper edge (wet-paint highlight).
-    for (let k = 0; k < 2; k++) {
-      const off = (-0.28 - k * 0.16) * r
-      const hv = this.smoothNoise(this.bristleDist * 0.06 + k * 7.1 + 3, k * 1.9)
-      if (hv > 0.42) this.fillShape(p.x + perpX * off, p.y + perpY * off, r * 0.16, this.shade(color, 0.78), a * 0.55)
+    // Bright SPECULAR sheen — several near-white glossy streaks running along the upper half (wet gloss).
+    for (let k = 0; k < 4; k++) {
+      const off = (-0.08 - k * 0.17) * r
+      const hv = this.smoothNoise(this.bristleDist * 0.07 + k * 5.3 + 2, k * 2.1)
+      if (hv > 0.48) this.fillShape(p.x + perpX * off, p.y + perpY * off, r * 0.1, this.shade(color, 0.9), a * 0.65)
     }
     // Darker lower edge → raised-paint depth.
-    this.fillShape(p.x + perpX * (r * 0.66), p.y + perpY * (r * 0.66), r * 0.2, this.shade(color, -0.4), a * 0.3)
+    this.fillShape(p.x + perpX * (r * 0.72), p.y + perpY * (r * 0.72), r * 0.16, this.shade(color, -0.45), a * 0.35)
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */

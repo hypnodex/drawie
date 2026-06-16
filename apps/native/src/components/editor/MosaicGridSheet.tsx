@@ -32,7 +32,9 @@ export function MosaicGridSheet({
   const rows = canvas?.gridRows ?? (tiles?.length ? Math.max(...tiles.map((t) => t.row)) + 1 : 1)
   const byPos = new Map((tiles ?? []).map((t) => [`${t.row}:${t.col}`, t]))
   const done = (tiles ?? []).filter((t) => t.status === 'completed').length
-  const fitW = area.w > 0 && area.h > 0 ? Math.min(area.w, (area.h - 16) * (cols / rows)) : area.w
+  // Fit the whole mosaic into the area with breathing room (≈24px sides, ≈48px top/bottom) so it's
+  // fully visible without scrolling and not flush against the header/legend.
+  const fitW = area.w > 0 && area.h > 0 ? Math.min(area.w - 24, (area.h - 48) * (cols / rows)) : area.w
 
   return (
     <View pointerEvents="auto" className="absolute inset-0 z-50 bg-background/95 px-4 pb-4 pt-3">

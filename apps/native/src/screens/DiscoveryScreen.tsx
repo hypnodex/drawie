@@ -95,7 +95,7 @@ export function DiscoveryScreen({
       <ScrollView
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="w-full max-w-[720px] self-center pb-10"
+        contentContainerClassName="w-full pb-10"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Hero — editorial headline + lede + CTA (mirrors web HeroSection). */}
@@ -128,8 +128,10 @@ export function DiscoveryScreen({
         {trending.length > 0 && (
           <>
             <SectionHeader title="Trending now" subtitle="Active canvases with momentum — join in before they're done." />
-            <View className="gap-3 px-5 pb-2">
-              {trending.map((c) => <CanvasCard key={c.id} canvas={c} onPress={() => onOpen(c.id)} />)}
+            <View className="flex-row flex-wrap px-3.5 pb-2">
+              {trending.map((c) => (
+                <View key={c.id} className="w-1/2 p-1.5"><CanvasCard canvas={c} onPress={() => onOpen(c.id)} /></View>
+              ))}
             </View>
           </>
         )}
@@ -175,9 +177,11 @@ export function DiscoveryScreen({
               <Button onPress={load}><Text>Retry</Text></Button>
             </View>
           ) : (
-            <View className="gap-3 px-4 pt-1">
-              {canvases!.length === 0 && <Text className="mt-6 text-center text-muted-foreground">No canvases match.</Text>}
-              {canvases!.map((c) => <CanvasCard key={c.id} canvas={c} onPress={() => onOpen(c.id)} />)}
+            <View className="flex-row flex-wrap px-3.5 pt-1">
+              {canvases!.length === 0 && <Text className="mt-6 w-full text-center text-muted-foreground">No canvases match.</Text>}
+              {canvases!.map((c) => (
+                <View key={c.id} className="w-1/2 p-1.5"><CanvasCard canvas={c} onPress={() => onOpen(c.id)} /></View>
+              ))}
             </View>
           )}
         </View>
