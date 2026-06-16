@@ -17,6 +17,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "^56.0.0",
+    "expo-dev-client": "~56.0.20",
     "expo-status-bar": "~56.0.4",
     "nativewind": "^4.2.5",
     "react": "19.2.3",
