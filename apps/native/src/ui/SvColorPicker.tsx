@@ -1,8 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Pressable, TextInput } from 'react-native'
 import { Canvas, Rect, LinearGradient, vec } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { runOnJS } from 'react-native-reanimated'
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated'
 import { Text } from '../components/ui/text'
 import { EyedropperIcon } from '../components/icons'
 import { tokenColors } from '../theme/tokenColors'
@@ -27,44 +27,55 @@ export function SvColorPicker({
   // gesture worklets (which must read the latest size without re-subscribing).
   const [svDims, setSvDims] = useState({ w: 0, h: 0 })
   const [hueW, setHueW] = useState(0)
-  const svDimsRef = useRef(svDims); svDimsRef.current = svDims
-  const hueWRef = useRef(hueW); hueWRef.current = hueW
   // Live values for the gesture worklets (avoid stale closures / re-created gestures mid-drag).
   const onChangeRef = useRef(onChange); onChangeRef.current = onChange
   const hueRef = useRef(h); hueRef.current = h
+  const currentS = useRef(s); currentS.current = s
+  const currentV = useRef(v); currentV.current = v
+
+  // UI-thread thumb positions (fractions) + dims as shared values, so dragging is smooth no matter how
+  // heavy the React re-render is — exactly like the Slider.
+  const svFx = useSharedValue(s)        // saturation 0..1 (x)
+  const svFy = useSharedValue(1 - v)    // value 0..1 from the top (y)
+  const hueF = useSharedValue(h / 360)
+  const svW = useSharedValue(1), svH = useSharedValue(1), hueWsv = useSharedValue(1)
+  const dragging = useSharedValue(false)
+  useEffect(() => {
+    if (!dragging.value) { svFx.value = s; svFy.value = 1 - v; hueF.value = h / 360 }
+  }, [s, v, h, dragging, svFx, svFy, hueF])
 
   // Throttle the data commit to ~30 fps so a drag doesn't re-render the editor every frame.
   const lastCommit = useRef(0)
-  const commit = useCallback((hex: string) => {
+  const applySv = useCallback((fx: number, fy: number, throttle: boolean) => {
     const now = Date.now()
-    if (now - lastCommit.current < 33) return
+    if (throttle && now - lastCommit.current < 33) return
     lastCommit.current = now
-    onChangeRef.current(hex)
+    onChangeRef.current(hsvToHex(hueRef.current, fx, 1 - fy))
   }, [])
-  const applySv = useCallback((x: number, y: number) => {
-    const d = svDimsRef.current
-    if (!d.w || !d.h) return
-    commit(hsvToHex(hueRef.current, clamp01(x / d.w), clamp01(1 - y / d.h)))
-  }, [commit])
-  // current S/V kept in refs so a hue drag preserves them
-  const currentS = useRef(s); currentS.current = s
-  const currentV = useRef(v); currentV.current = v
-  const applyHue = useCallback((x: number) => {
-    const w = hueWRef.current
-    if (!w) return
-    commit(hsvToHex(clamp01(x / w) * 360, currentS.current || 1, currentV.current || 1))
-  }, [commit])
+  const applyHue = useCallback((f: number, throttle: boolean) => {
+    const now = Date.now()
+    if (throttle && now - lastCommit.current < 33) return
+    lastCommit.current = now
+    onChangeRef.current(hsvToHex(f * 360, currentS.current || 1, currentV.current || 1))
+  }, [])
 
   const svPan = useRef(
     Gesture.Pan().minDistance(0)
-      .onBegin((e) => runOnJS(applySv)(e.x, e.y))
-      .onUpdate((e) => runOnJS(applySv)(e.x, e.y)),
+      .onBegin((e) => { 'worklet'; dragging.value = true; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
+      .onUpdate((e) => { 'worklet'; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
+      .onEnd((e) => { 'worklet'; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, false) })
+      .onFinalize(() => { 'worklet'; dragging.value = false }),
   ).current
   const huePan = useRef(
     Gesture.Pan().minDistance(0)
-      .onBegin((e) => runOnJS(applyHue)(e.x))
-      .onUpdate((e) => runOnJS(applyHue)(e.x)),
+      .onBegin((e) => { 'worklet'; dragging.value = true; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
+      .onUpdate((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
+      .onEnd((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, false) })
+      .onFinalize(() => { 'worklet'; dragging.value = false }),
   ).current
+
+  const svThumbStyle = useAnimatedStyle(() => ({ left: `${svFx.value * 100}%`, top: `${svFy.value * 100}%` }))
+  const hueThumbStyle = useAnimatedStyle(() => ({ left: `${hueF.value * 100}%` }))
 
   const setChannel = (key: 'r' | 'g' | 'b', text: string) => {
     const n = clamp(parseInt(text.replace(/[^0-9]/g, '') || '0', 10), 0, 255)
@@ -75,7 +86,7 @@ export function SvColorPicker({
   return (
     <View className="gap-2">
       <GestureDetector gesture={svPan}>
-        <View className="h-40 w-full overflow-hidden rounded-lg bg-black" onLayout={(e) => setSvDims({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+        <View className="h-40 w-full overflow-hidden rounded-lg bg-black" onLayout={(e) => { const { width, height } = e.nativeEvent.layout; setSvDims({ w: width, h: height }); svW.value = width; svH.value = height }}>
           {svDims.w > 0 && (
             <Canvas style={{ width: svDims.w, height: svDims.h }}>
               <Rect x={0} y={0} width={svDims.w} height={svDims.h}>
@@ -86,7 +97,7 @@ export function SvColorPicker({
               </Rect>
             </Canvas>
           )}
-          <View pointerEvents="none" className="absolute h-4 w-4 rounded-full border-2 border-white shadow" style={{ left: s * svDims.w - 8, top: (1 - v) * svDims.h - 8, backgroundColor: color }} />
+          <Animated.View pointerEvents="none" className="absolute h-4 w-4 rounded-full border-2 border-white shadow" style={[{ marginLeft: -8, marginTop: -8, backgroundColor: color }, svThumbStyle]} />
         </View>
       </GestureDetector>
 
@@ -98,7 +109,7 @@ export function SvColorPicker({
         )}
         <View className="h-9 w-9 rounded-full border border-black/10" style={{ backgroundColor: color }} />
         <GestureDetector gesture={huePan}>
-          <View className="h-5 flex-1 justify-center overflow-hidden rounded-full" onLayout={(e) => setHueW(e.nativeEvent.layout.width)}>
+          <View className="h-5 flex-1 justify-center overflow-hidden rounded-full" onLayout={(e) => { const w = e.nativeEvent.layout.width; setHueW(w); hueWsv.value = w }}>
             {hueW > 0 && (
               <Canvas style={{ width: hueW, height: 20 }}>
                 <Rect x={0} y={0} width={hueW} height={20}>
@@ -106,7 +117,7 @@ export function SvColorPicker({
                 </Rect>
               </Canvas>
             )}
-            <View pointerEvents="none" className="absolute -ml-2.5 h-5 w-5 rounded-full border-2 border-white shadow" style={{ left: (h / 360) * hueW, backgroundColor: hueHex }} />
+            <Animated.View pointerEvents="none" className="absolute h-5 w-5 rounded-full border-2 border-white shadow" style={[{ marginLeft: -10, backgroundColor: hueHex }, hueThumbStyle]} />
           </View>
         </GestureDetector>
       </View>
@@ -132,7 +143,6 @@ export function SvColorPicker({
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
-const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 function hexToRgb(hex: string) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())

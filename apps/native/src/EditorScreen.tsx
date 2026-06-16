@@ -293,6 +293,10 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
     if (t === 1) resetPan()
   }
   const zoomFit = () => { zScale.value = withTiming(1); zSaved.value = 1; resetPan() }
+  // A gesture "shield" over the canvas while the settings panel is open — it claims any canvas touch
+  // (incl. the Pencil) so a stroke can't land on or through the panel. Sits below the chrome (panel,
+  // layers, dock still work). More reliable than just disabling the draw gesture.
+  const shieldGesture = useMemo(() => Gesture.Pan().minDistance(0), [])
 
   // Sliver-stage geometry (mirrors web Canvas.tsx with tilePx → inner): a centred S×S stage with the
   // artboard inset by `sliver` on all sides; the up-to-8 neighbor strips fill the margin.
@@ -394,6 +398,13 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
             </Animated.View>
           </GestureDetector>
         )}
+        {/* Touch shield — blocks drawing on/through the canvas while the settings panel is open. */}
+        {settingsOpen && (
+          <GestureDetector gesture={shieldGesture}>
+            <View className="absolute inset-0" />
+          </GestureDetector>
+        )}
+
         {/* ── Floating chrome over the canvas (web-style): Layers card · settings popover · tool dock ── */}
         <View className="absolute right-3 top-3">
           <LayersCard layers={layers} activeId={activeId} onSelect={setActiveId} onToggleVisible={toggleVisible} onAdd={addLayer} onDelete={deleteLayer} onMerge={mergeDown} />
