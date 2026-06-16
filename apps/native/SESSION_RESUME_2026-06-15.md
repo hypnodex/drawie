@@ -99,5 +99,28 @@ cd apps/native && PATH="/opt/homebrew/bin:$PATH" npx expo run:ios --device 00008
 ## Open items
 - Device-verify the 8 fixes → if good, record native editor as device-confirmed + consider merging
   `feat/native-shadcn`.
-- Deferred: **Style Dictionary** single-source tokens (web CSS vars + native `:root` HSL — OKLCH-web vs HSL-native).
 - Unrelated/open: prod web smoke-test at https://drawie-xi.vercel.app.
+
+---
+
+# Phase-3 single-source tokens (2026-06-16) — DONE, code
+
+Decision: **web is canonical, converge native** (prod web CSS untouched, stays the OKLCH reference).
+Commit `e7d6814` (pushed). See [`packages/tokens/README.md`](../../packages/tokens/README.md).
+
+- **`packages/tokens/`** (new) — `tokens.json` = the shadcn semantic palette with the **web** brand
+  values; **`build.mjs`** is a **zero-dependency** generator (OKLCH → OKLab → linear sRGB → sRGB → HSL,
+  Ottosson) — chosen over Style Dictionary because the worktree has no root `node_modules` and the
+  OKLCH→HSL transform is custom either way; the JSON source stays tool-agnostic.
+- It emits: `apps/native/global.css` `:root` (HSL channels — native now mirrors web) and
+  `apps/native/src/theme/tokenColors.ts` (resolved hex for RN-SVG / ActivityIndicator / inline).
+  Regenerate: `node packages/tokens/build.mjs`.
+- **Visible convergence**: primary green preserved (`#21c45f`→`#28d75d`); **primary-foreground flips
+  white→near-black** to match the web (dark text on the light-green accent — affects Submit + active
+  tool); grays gain a faint green tint; destructive slightly more vivid. `success`/`warning` added to
+  `tailwind.config`. All hand-set `hsl(142/350)` consts now read from `tokenColors`.
+- Verified: native force-bundle 200; converged values in the bundle; **no web files changed**.
+
+**Verify on device too:** primary buttons / active tool now show dark text on green (intended, matches
+web); subtle gray tint. To change a brand color: edit `tokens.json` **and** `apps/web/src/index.css`,
+then rerun `build.mjs`.
