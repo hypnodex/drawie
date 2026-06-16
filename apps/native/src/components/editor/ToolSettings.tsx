@@ -44,12 +44,13 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
 const pct = (v: number) => `${Math.round(v * 100)}%`
 
 export function ToolSettingsPanel({
-  tool, settings, onChange, palette,
+  tool, settings, onChange, palette, onEyedrop,
 }: {
   tool: ToolId
   settings: ToolSettingsType
   onChange: (patch: Partial<ToolSettingsType>) => void
   palette?: string[]
+  onEyedrop?: () => void
 }) {
   const meta = TOOL_META[tool]
   const waterOnly = tool === 'waterdrop' && settings.color === 'transparent'
@@ -76,7 +77,7 @@ export function ToolSettingsPanel({
             </Pressable>
           )}
           {!waterOnly && (
-            <ColorPalette color={settings.color === 'transparent' ? '#74c2f0' : settings.color} onChange={(c) => onChange({ color: c })} palette={palette} />
+            <ColorPalette color={settings.color === 'transparent' ? '#74c2f0' : settings.color} onChange={(c) => onChange({ color: c })} palette={palette} onEyedrop={onEyedrop} />
           )}
         </>
       )}

@@ -53,10 +53,13 @@ type DrawCanvasProps = {
   onLiveStart?: (stroke: { toolId: ToolId; settings: ToolSettings; assist: AssistSettings; seed: number; first: StrokeSample }) => void
   onLiveAppend?: (samples: StrokeSample[]) => void
   onLiveEnd?: (ticks?: number[]) => void
+  /** Eyedropper: when true a tap samples this layer's pixel and reports its hex (null = transparent). */
+  picking?: boolean
+  onPick?: (hex: string | null) => void
 }
 
 export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function DrawCanvas(
-  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd }, ref,
+  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd, picking = false, onPick }, ref,
 ) {
   // Read the latest live callbacks without re-subscribing the gesture handlers.
   const liveStartRef = useRef(onLiveStart); liveStartRef.current = onLiveStart
@@ -288,16 +291,32 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // two-finger-pan (a parent GestureDetector) never activate. Single pointer (the pen) → draw;
   // two pointers (fingers) → released to the zoom/pan gestures above.
   const pan = Gesture.Pan()
-    .enabled(active)
+    .enabled(active && !picking)
     .maxPointers(1)
     .minDistance(0)
     .onBegin((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(begin)(e.x, e.y, p, has, tiltX, tiltY) })
     .onUpdate((e) => { if (e.stylusData == null) return; const { p, has, tiltX, tiltY } = press(e); runOnJS(move)(e.x, e.y, p, has, tiltX, tiltY) })
     .onFinalize(() => { runOnJS(end)() }) // fires on lift AND cancel
 
+  // Eyedropper: sample this layer's pixel at the tap (any pointer) and report its hex (null = transparent).
+  const sampleAt = (vx: number, vy: number) => {
+    if (!alive.current) return
+    const { x, y } = toArtboard(vx, vy)
+    backend.flush()
+    const px = backend.readPixel(
+      Math.max(0, Math.min(ARTBOARD - 1, Math.round(x))),
+      Math.max(0, Math.min(ARTBOARD - 1, Math.round(y))),
+    )
+    if (px && px.a >= 0.5) {
+      const h = (n: number) => Math.round(n).toString(16).padStart(2, '0')
+      onPick?.(`#${h(px.r)}${h(px.g)}${h(px.b)}`)
+    } else onPick?.(null)
+  }
+  const tap = Gesture.Tap().enabled(picking).onEnd((e) => { runOnJS(sampleAt)(e.x, e.y) })
+
   return (
     <View style={styles.fill} onLayout={onLayout}>
-      <GestureDetector gesture={pan}>
+      <GestureDetector gesture={Gesture.Race(tap, pan)}>
         <Canvas style={StyleSheet.absoluteFill}>
           {dims.w > 0 && <Image image={image} x={0} y={0} width={dims.w} height={dims.h} fit="contain" />}
         </Canvas>

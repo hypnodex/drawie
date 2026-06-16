@@ -71,6 +71,7 @@ export default function DrawingScreen({
   const [settingsMap, setSettingsMap] = useState<ToolSettingsMap>(DEFAULT_SETTINGS)
   const [recentColors, setRecentColors] = useState<string[]>([])
   const [secondaryColor, setSecondaryColor] = useState<string>('#ffffff')
+  const [bgColor, setBgColor] = useState<string>('#ffffff') // artboard background (the 'BG color' tool; re-applicable)
   const [revealOpen, setRevealOpen] = useState(false)
   const [popover, setPopover] = useState<'tool' | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
@@ -164,6 +165,8 @@ export default function DrawingScreen({
   }, [paletteOverride])
 
   const settings = settingsMap[tool]
+  // 'BG color' tool: the picked colour IS the artboard background, applied live + re-applicable.
+  useEffect(() => { if (tool === 'bucket') setBgColor(settings.color) }, [tool, settings.color])
 
   const onToolSettingsChange = useCallback((patch: Partial<typeof settings>) => {
     setSettingsMap((prev) => ({ ...prev, [tool]: { ...prev[tool], ...patch } }))
@@ -398,6 +401,7 @@ export default function DrawingScreen({
           canvasId={canvas?.id}
           userId={userId}
           neighborArt={neighborArt}
+          bgColor={bgColor}
         />
       </div>
 

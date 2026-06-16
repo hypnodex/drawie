@@ -21,7 +21,7 @@ import { cn } from './lib/cn'
 import { LayersCard } from './components/editor/LayersCard'
 import { ToolSettingsPanel } from './components/editor/ToolSettings'
 import { MosaicGridSheet } from './components/editor/MosaicGridSheet'
-import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon, ZoomInIcon, ZoomOutIcon, FitIcon, GridIcon } from './components/icons'
+import { TOOL_ICON, UndoIcon, RedoIcon, TrashIcon, SendIcon, ZoomInIcon, ZoomOutIcon, FitIcon, GridIcon, EyedropperIcon } from './components/icons'
 
 import { tokenColors } from './theme/tokenColors'
 
@@ -77,6 +77,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   const [settingsOpen, setSettingsOpen] = useState(false) // brush-settings sheet, hidden by default (web-style)
   const [mosaicOpen, setMosaicOpen] = useState(false) // "view the whole mosaic while drawing" (#2)
   const [bgColor, setBgColor] = useState('#ffffff') // artboard background colour (the 'BG color' tool; re-applicable)
+  const [pickMode, setPickMode] = useState(false) // eyedropper: next canvas tap samples a colour (#7)
   const nextId = useRef(2)
   const layerRefs = useRef(new Map<number, DrawCanvasHandle>())
 
@@ -134,6 +135,9 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   // 'BG color' tool: the picked colour IS the artboard background, applied live — change it any number
   // of times (it sits behind the art and never covers strokes), unlike a one-shot pixel fill.
   useEffect(() => { if (tool === 'bucket') setBgColor(s.color) }, [tool, s.color])
+  // Eyedropper: arm pick mode + hide the popover so the canvas is tappable; the next tap samples a pixel.
+  const startEyedrop = () => { setPickMode(true); setSettingsOpen(false) }
+  const onPickColor = (hex: string | null) => { patch({ color: hex ?? bgColor }); setPickMode(false); setSettingsOpen(true) }
   const hist = histById[activeId] ?? { canUndo: false, canRedo: false }
   const activeLayer = layers.find((L) => L.id === activeId) ?? layers[0]
   const ref = (id: number) => layerRefs.current.get(id)
@@ -376,6 +380,8 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                     active={L.id === activeId}
                     tool={tool}
                     settings={s}
+                    picking={pickMode && L.id === activeId}
+                    onPick={onPickColor}
                     onHistory={(h) => setHistById((m) => ({ ...m, [L.id]: h }))}
                     onLiveStart={onLiveStart}
                     onLiveAppend={onLiveAppend}
@@ -415,7 +421,7 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
         {settingsOpen && (
           <View pointerEvents="box-none" className="absolute inset-x-0 bottom-[104px] items-center px-3">
             <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} className="w-full max-w-md rounded-2xl bg-card shadow-lg" contentContainerClassName="gap-2 p-3">
-              <ToolSettingsPanel tool={tool} settings={s} onChange={patch} palette={palette} />
+              <ToolSettingsPanel tool={tool} settings={s} onChange={patch} palette={palette} onEyedrop={startEyedrop} />
               <View className="h-px bg-border" />
               <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
               {simAllowed() && (
@@ -436,6 +442,16 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                 </View>
               )}
             </ScrollView>
+          </View>
+        )}
+
+        {/* Eyedropper armed — tell the user to tap the canvas. */}
+        {pickMode && (
+          <View pointerEvents="box-none" className="absolute inset-x-0 top-3 items-center">
+            <Pressable onPress={() => setPickMode(false)} className="flex-row items-center gap-2 rounded-full bg-foreground/90 px-3.5 py-2 shadow-lg">
+              <EyedropperIcon size={15} color="white" />
+              <Text className="text-xs font-semibold text-background">Tap a colour on the canvas · tap here to cancel</Text>
+            </Pressable>
           </View>
         )}
 

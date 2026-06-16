@@ -80,6 +80,8 @@ interface Props {
   /** Real adjacent-tile artwork (signed URLs) keyed by NEIGHBOR_OFFSETS cell index. Shown as the
    *  static sliver content under the live layer; empty neighbors stay blank. */
   neighborArt?: Record<number, string>
+  /** Artboard background colour (the 'BG color' tool). Sits behind every layer; re-applicable. */
+  bgColor?: string
 }
 
 const NEIGHBORS: Array<{ row: -1 | 0 | 1; col: -1 | 0 | 1; seed: number }> = [
@@ -105,7 +107,7 @@ const INTERNAL_SIZE = 2000
 const MAX_UNDO = 80
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
-  { tool, settings, assist, layers, activeLayerId, onZoomChange, largeNeighbors = false, popoverOpen, onDismissPopover, onStrokeStart, onStrokeEnd, onShapeDetected, onHistoryChange, tileRow, tileCol, gridRows, gridCols, canvasId, userId, neighborArt },
+  { tool, settings, assist, layers, activeLayerId, onZoomChange, largeNeighbors = false, popoverOpen, onDismissPopover, onStrokeStart, onStrokeEnd, onShapeDetected, onHistoryChange, tileRow, tileCol, gridRows, gridCols, canvasId, userId, neighborArt, bgColor = '#ffffff' },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -436,6 +438,9 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   }, [stageSize, sliver, tilePx])
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // 'BG color' is applied at the editor level (the artboard paper takes the colour), not painted
+    // into pixels — so skip stroke setup for it.
+    if (tool === 'bucket') return
     // Tool / Functions popover open? Close it from here directly and skip
     // any stroke setup so this tap doesn't draw. We intentionally do NOT
     // call e.preventDefault() — that would suppress the mousedown that the
@@ -644,6 +649,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       tmp.width = INTERNAL_SIZE
       tmp.height = INTERNAL_SIZE
       const ctx = tmp.getContext('2d')!
+      // Background colour behind every layer (skip the default white so untouched tiles stay transparent).
+      if (bgColor.toLowerCase() !== '#ffffff') {
+        ctx.fillStyle = bgColor
+        ctx.fillRect(0, 0, INTERNAL_SIZE, INTERNAL_SIZE)
+      }
       for (const layer of layers) {
         if (!layer.visible) continue
         const c = layerCanvasRefs.current.get(layer.id)
@@ -655,7 +665,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     zoomOut: () => { const next = Math.max(0.1, zoom / 1.25); setZoom(next); onZoomChangeRef.current?.(next) },
     zoomFit: () => { setZoom(fitZoom); onZoomChangeRef.current?.(fitZoom) },
     getZoom: () => zoom,
-  }), [layers, zoom, fitZoom, getStrokes, rerenderLayer, recordUndo, notifyHistory])
+  }), [layers, zoom, fitZoom, getStrokes, rerenderLayer, recordUndo, notifyHistory, bgColor])
 
   // Layout — slivers that show the inner edge of each neighbor mock tile.
   // (sliver and stageSize are declared at the top of the component so callbacks
@@ -768,7 +778,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
           className="absolute rounded-md overflow-hidden tile-glow"
           style={{ left: sliver, top: sliver, width: tilePx, height: tilePx }}
         >
-          <div className="absolute inset-0 bg-white" />
+          <div className="absolute inset-0" style={{ backgroundColor: bgColor }} />
 
           {/* Stacked layer canvases — bottom first so later siblings paint on top */}
           {layers.map((layer) => (

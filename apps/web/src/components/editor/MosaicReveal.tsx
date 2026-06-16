@@ -55,8 +55,8 @@ export function MosaicReveal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-[var(--foreground)]/95 text-[var(--background)] border-0 max-w-[min(96vw,96vh)] sm:max-w-[min(96vw,96vh)]">
-            <div className="flex flex-col items-center gap-6">
+      <DialogContent className="bg-[var(--foreground)]/95 text-[var(--background)] border-0 max-w-[94vw] sm:max-w-[94vw] max-h-[92vh] overflow-hidden">
+            <div className="flex flex-col items-center gap-4 py-2">
             <header className="text-center">
               <div className="font-mono text-[10px] opacity-60">Mosaic Preview</div>
               <DialogTitle className="text-2xl font-bold mt-1">The full mosaic</DialogTitle>
@@ -67,10 +67,14 @@ export function MosaicReveal({
             </header>
 
             <div
-              className="grid w-full aspect-square rounded-2xl overflow-hidden"
+              className="grid rounded-2xl overflow-hidden"
               style={{
                 gridTemplateColumns: `repeat(${size.cols}, 1fr)`,
                 gridTemplateRows: `repeat(${size.rows}, 1fr)`,
+                // True aspect → square tiles even on non-square mosaics; cap to the viewport so the
+                // whole thing is visible without scrolling, with top/bottom breathing room.
+                aspectRatio: `${size.cols} / ${size.rows}`,
+                maxHeight: '74vh', maxWidth: '88vw', width: '100%', margin: '0 auto',
                 gap: 3, padding: 3, backgroundColor: '#0a0b0e',
               }}
             >

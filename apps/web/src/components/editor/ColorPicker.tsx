@@ -54,6 +54,24 @@ export function ColorPicker({
             <ColorSlot label="Secondary" color={secondary} onChange={onSecondaryChange} disabled={restricted} />
           </>
         )}
+        {!restricted && typeof window !== 'undefined' && 'EyeDropper' in window && (
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const res = await new (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper().open()
+                if (res?.sRGBHex) onChange(res.sRGBHex)
+              } catch { /* user cancelled */ }
+            }}
+            title="Pick a colour from the screen"
+            aria-label="Eyedropper"
+            className="w-7 h-7 shrink-0 rounded-md bg-[var(--surface-secondary)] text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-tertiary)] flex items-center justify-center"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 5a2 2 0 0 0-2.8 0l-1.6 1.6-1-1-1.4 1.4 1 1L4 17.2V20h2.8l8.2-8.2 1 1 1.4-1.4-1-1L19 7.8A2 2 0 0 0 19 5z" />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => !restricted && setOpen((o) => !o)}
