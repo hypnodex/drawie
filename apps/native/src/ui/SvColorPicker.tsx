@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { View, Pressable, TextInput } from 'react-native'
+import { View, Pressable, TextInput, Keyboard } from 'react-native'
 import { Canvas, Rect, LinearGradient, vec } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated'
@@ -44,6 +44,11 @@ export function SvColorPicker({
     if (!dragging.value) { svFx.value = s; svFy.value = 1 - v; hueF.value = h / 360 }
   }, [s, v, h, dragging, svFx, svFy, hueF])
 
+  // Blur any focused R/G/B field the instant a Pencil drag starts on the square/strip. While a TextInput
+  // holds focus, iPadOS Scribble hijacks the Apple Pencil (gray handwriting ink over the UI), so dropping
+  // focus on drag-start lets the Pencil pick a colour instead of triggering handwriting.
+  const dismissKb = useCallback(() => Keyboard.dismiss(), [])
+
   // Throttle the data commit to ~30 fps so a drag doesn't re-render the editor every frame.
   const lastCommit = useRef(0)
   const applySv = useCallback((fx: number, fy: number, throttle: boolean) => {
@@ -61,14 +66,14 @@ export function SvColorPicker({
 
   const svPan = useRef(
     Gesture.Pan().minDistance(0)
-      .onBegin((e) => { 'worklet'; dragging.value = true; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
+      .onBegin((e) => { 'worklet'; dragging.value = true; runOnJS(dismissKb)(); const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
       .onUpdate((e) => { 'worklet'; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, true) })
       .onEnd((e) => { 'worklet'; const fx = Math.max(0, Math.min(1, e.x / svW.value)), fy = Math.max(0, Math.min(1, e.y / svH.value)); svFx.value = fx; svFy.value = fy; runOnJS(applySv)(fx, fy, false) })
       .onFinalize(() => { 'worklet'; dragging.value = false }),
   ).current
   const huePan = useRef(
     Gesture.Pan().minDistance(0)
-      .onBegin((e) => { 'worklet'; dragging.value = true; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
+      .onBegin((e) => { 'worklet'; dragging.value = true; runOnJS(dismissKb)(); const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
       .onUpdate((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, true) })
       .onEnd((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / hueWsv.value)); hueF.value = f; runOnJS(applyHue)(f, false) })
       .onFinalize(() => { 'worklet'; dragging.value = false }),
