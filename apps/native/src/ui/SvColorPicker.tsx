@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { View, Pressable, TextInput } from 'react-native'
 import { Canvas, Rect, LinearGradient, vec } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -23,25 +23,37 @@ export function SvColorPicker({
   const { r, g, b } = hexToRgb(color)
   const hueHex = hsvToHex(h, 1, 1)
 
+  // Dims are STATE so the Skia <Canvas> actually renders once measured; mirrored to refs for the
+  // gesture worklets (which must read the latest size without re-subscribing).
+  const [svDims, setSvDims] = useState({ w: 0, h: 0 })
+  const [hueW, setHueW] = useState(0)
+  const svDimsRef = useRef(svDims); svDimsRef.current = svDims
+  const hueWRef = useRef(hueW); hueWRef.current = hueW
   // Live values for the gesture worklets (avoid stale closures / re-created gestures mid-drag).
   const onChangeRef = useRef(onChange); onChangeRef.current = onChange
   const hueRef = useRef(h); hueRef.current = h
-  const svRef = useRef({ w: 0, h: 0 })
-  const hueWRef = useRef(0)
 
-  const applySv = useCallback((x: number, y: number) => {
-    const d = svRef.current
-    if (!d.w || !d.h) return
-    onChangeRef.current(hsvToHex(hueRef.current, clamp01(x / d.w), clamp01(1 - y / d.h)))
+  // Throttle the data commit to ~30 fps so a drag doesn't re-render the editor every frame.
+  const lastCommit = useRef(0)
+  const commit = useCallback((hex: string) => {
+    const now = Date.now()
+    if (now - lastCommit.current < 33) return
+    lastCommit.current = now
+    onChangeRef.current(hex)
   }, [])
+  const applySv = useCallback((x: number, y: number) => {
+    const d = svDimsRef.current
+    if (!d.w || !d.h) return
+    commit(hsvToHex(hueRef.current, clamp01(x / d.w), clamp01(1 - y / d.h)))
+  }, [commit])
   // current S/V kept in refs so a hue drag preserves them
   const currentS = useRef(s); currentS.current = s
   const currentV = useRef(v); currentV.current = v
   const applyHue = useCallback((x: number) => {
     const w = hueWRef.current
     if (!w) return
-    onChangeRef.current(hsvToHex(clamp01(x / w) * 360, currentS.current || 1, currentV.current || 1))
-  }, [])
+    commit(hsvToHex(clamp01(x / w) * 360, currentS.current || 1, currentV.current || 1))
+  }, [commit])
 
   const svPan = useRef(
     Gesture.Pan().minDistance(0)
@@ -63,18 +75,18 @@ export function SvColorPicker({
   return (
     <View className="gap-2">
       <GestureDetector gesture={svPan}>
-        <View className="h-40 w-full overflow-hidden rounded-lg" onLayout={(e) => { svRef.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height } }}>
-          {svRef.current.w > 0 && (
-            <Canvas style={{ width: svRef.current.w, height: svRef.current.h }}>
-              <Rect x={0} y={0} width={svRef.current.w} height={svRef.current.h}>
-                <LinearGradient start={vec(0, 0)} end={vec(svRef.current.w, 0)} colors={['#ffffff', hueHex]} />
+        <View className="h-40 w-full overflow-hidden rounded-lg bg-black" onLayout={(e) => setSvDims({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+          {svDims.w > 0 && (
+            <Canvas style={{ width: svDims.w, height: svDims.h }}>
+              <Rect x={0} y={0} width={svDims.w} height={svDims.h}>
+                <LinearGradient start={vec(0, 0)} end={vec(svDims.w, 0)} colors={['#ffffff', hueHex]} />
               </Rect>
-              <Rect x={0} y={0} width={svRef.current.w} height={svRef.current.h}>
-                <LinearGradient start={vec(0, 0)} end={vec(0, svRef.current.h)} colors={['rgba(0,0,0,0)', '#000000']} />
+              <Rect x={0} y={0} width={svDims.w} height={svDims.h}>
+                <LinearGradient start={vec(0, 0)} end={vec(0, svDims.h)} colors={['rgba(0,0,0,0)', '#000000']} />
               </Rect>
             </Canvas>
           )}
-          <View pointerEvents="none" className="absolute h-4 w-4 rounded-full border-2 border-white shadow" style={{ left: s * svRef.current.w - 8, top: (1 - v) * svRef.current.h - 8, backgroundColor: color }} />
+          <View pointerEvents="none" className="absolute h-4 w-4 rounded-full border-2 border-white shadow" style={{ left: s * svDims.w - 8, top: (1 - v) * svDims.h - 8, backgroundColor: color }} />
         </View>
       </GestureDetector>
 
@@ -86,15 +98,15 @@ export function SvColorPicker({
         )}
         <View className="h-9 w-9 rounded-full border border-black/10" style={{ backgroundColor: color }} />
         <GestureDetector gesture={huePan}>
-          <View className="h-5 flex-1 justify-center overflow-hidden rounded-full" onLayout={(e) => { hueWRef.current = e.nativeEvent.layout.width }}>
-            {hueWRef.current > 0 && (
-              <Canvas style={{ width: hueWRef.current, height: 20 }}>
-                <Rect x={0} y={0} width={hueWRef.current} height={20}>
-                  <LinearGradient start={vec(0, 0)} end={vec(hueWRef.current, 0)} colors={['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ff0000']} />
+          <View className="h-5 flex-1 justify-center overflow-hidden rounded-full" onLayout={(e) => setHueW(e.nativeEvent.layout.width)}>
+            {hueW > 0 && (
+              <Canvas style={{ width: hueW, height: 20 }}>
+                <Rect x={0} y={0} width={hueW} height={20}>
+                  <LinearGradient start={vec(0, 0)} end={vec(hueW, 0)} colors={['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ff0000']} />
                 </Rect>
               </Canvas>
             )}
-            <View pointerEvents="none" className="absolute -ml-2.5 h-5 w-5 rounded-full border-2 border-white shadow" style={{ left: (h / 360) * hueWRef.current, backgroundColor: hueHex }} />
+            <View pointerEvents="none" className="absolute -ml-2.5 h-5 w-5 rounded-full border-2 border-white shadow" style={{ left: (h / 360) * hueW, backgroundColor: hueHex }} />
           </View>
         </GestureDetector>
       </View>
