@@ -1,4 +1,11 @@
-import type { AssistSettings, ToolSettingsMap } from './types'
+import type { AssistSettings, ToolSettingsMap, TextureBrushSettings } from './types'
+
+/** Default Texture-Brush (profibrush) params. Fixed angled flat tip → the stroke width visibly varies
+ *  with travel direction (calligraphy-like); subtle colour jitter + fade-in give the painterly look. */
+export const DEFAULT_TEX: TextureBrushSettings = {
+  spacing: 0.045, aspect: 2.6, rotate: 40, auto: false, dynamics: 0.5,
+  fadeIn: 6, fadeOut: 8, inkFade: 0.12, colorRandom: 40, angleRandom: 4, scaleRandom: 0.18, jitter: 0.06,
+}
 
 /**
  * Canonical product defaults shared by web and native, so every tool starts identically on
@@ -26,6 +33,7 @@ export const DEFAULT_SETTINGS: ToolSettingsMap = {
   impasto:    { color: '#c0563b', size: 42, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
   oil:        { color: '#e8732a', size: 46, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1, dilution: 0.25 },
   bucket:     { color: '#e8732a', size: 40, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: false, wetPaint: false, ...COMMON },
+  profibrush: { color: '#2b2f36', size: 40, opacity: 0.9,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1, tex: { ...DEFAULT_TEX } },
 }
 
 export const DEFAULT_ASSIST: AssistSettings = {

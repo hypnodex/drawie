@@ -13,8 +13,30 @@ export type ToolId =
   | 'impasto'
   | 'oil'
   | 'bucket'
+  | 'profibrush'
 
 export type BrushShape = 'circle' | 'square'
+
+/**
+ * Sumopaint-style "Texture Brush" params (Route A — flat stamp-along-path, no height/lighting). Only the
+ * `profibrush` tool reads these; every other tool ignores them. The directional character comes from an
+ * anisotropic tip stamped along the (minimally-smoothed) path, each rotated to a fixed angle or the local
+ * tangent + offset.
+ */
+export interface TextureBrushSettings {
+  spacing: number     // distance between stamps as a fraction of diameter (low ~0.045 = continuous)
+  aspect: number      // tip elongation = length / width (1 = round, >1 = flat/anisotropic)
+  rotate: number      // fixed angle offset in DEGREES added to each stamp's rotation
+  auto: boolean       // auto-rotate each stamp to the local path tangent (then + rotate offset)
+  dynamics: number    // 0..1 — velocity → size/opacity (faster ⇒ thinner/lighter)
+  fadeIn: number      // taper size/opacity over the first N stamps (0 = off)
+  fadeOut: number     // taper over the last N stamps (0 = off; needs the full path → replay/end)
+  inkFade: number     // 0..1 — opacity fades across the whole stroke (paint running out)
+  colorRandom: number // 0..100 — per-stamp hue/value jitter (subtle painterly variation)
+  angleRandom: number // random per-stamp rotation in DEGREES (0 = clean)
+  scaleRandom: number // 0..1 — per-stamp size jitter
+  jitter: number      // 0..1 — random perpendicular offset of stamps (fraction of diameter)
+}
 
 export type BrushTexture = 'none' | 'canvas' | 'grain' | 'noise' | 'speckle'
 export const BRUSH_TEXTURES: BrushTexture[] = ['none', 'canvas', 'grain', 'noise', 'speckle']
@@ -34,6 +56,7 @@ export interface ToolSettings {
   buildUp: boolean   // pigment density — once a pixel is saturated, additional passes darken
   pressureSim: boolean
   wetPaint: boolean
+  tex?: TextureBrushSettings // profibrush (Texture Brush) params; undefined for every other tool
 }
 
 export type ToolSettingsMap = Record<ToolId, ToolSettings>

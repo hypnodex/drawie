@@ -1,6 +1,7 @@
 import type { AssistSettings, ToolId, ToolSettings, StrokePoint, InputPoint } from './types'
 import type { RendererBackend, GradientStop, PixelRegion } from './renderer'
 import { mulberry32, type Rng } from './rng'
+import { DEFAULT_TEX } from './defaults'
 
 // InputPoint is a shared data contract in ./types; re-exported here so existing
 // `import { InputPoint } from '@drawie/core'` (and legacy engine) call sites keep working.
@@ -65,6 +66,12 @@ export class StrokeEngine {
   private bristles: { off: number; w: number; dry: number; seed: number }[] = []
   private bristleDist = 0
 
+  // texture brush (profibrush): per-stroke stamp index (fade-in), travelled distance (ink fade), and the
+  // latest travel speed (velocity dynamics). Reset on begin.
+  private texIndex = 0
+  private texDist = 0
+  private strokeSpeed = 0
+
   /**
    * @param backend  paint target (Canvas2DBackend on web, SkiaBackend on native).
    * @param seed     per-stroke seed; stored in the retained model (Phase 3) so the
@@ -104,6 +111,8 @@ export class StrokeEngine {
       this.generateBristles(this.tool === 'inkbrush')
     } else if (this.tool === 'oil') {
       this.bristleDist = 0 // oil uses bristleDist for its streak noise, but not the bristle set
+    } else if (this.tool === 'profibrush') {
+      this.texIndex = 0; this.texDist = 0; this.strokeSpeed = 0
     }
     this.stamp(sp)
   }
@@ -120,7 +129,9 @@ export class StrokeEngine {
     // stamp position lags behind the cursor and curves clean up.
     // During shape-assist replay the EMA is bypassed since the generated point
     // sequence is already exact.
-    const baseA = this.tool === 'pen' ? 0.7 : 0.55
+    // profibrush keeps the path almost raw (minimal smoothing) so the directional character + turn
+    // irregularity survive instead of being averaged into a clean constant-width spline.
+    const baseA = this.tool === 'pen' ? 0.7 : this.tool === 'profibrush' ? 0.9 : 0.55
     const a = this.assist.bypassInputSmoothing
       ? 1
       : this.assist.stabilize
@@ -143,6 +154,7 @@ export class StrokeEngine {
 
     const dt = Math.max(1, t - this.last.t)
     const speed = dist / dt
+    this.strokeSpeed = speed // velocity dynamics for the texture brush
     const pressure = this.derivePressure(p, speed)
     this.smoothP = this.smoothP * 0.6 + pressure * 0.4
 
@@ -240,6 +252,7 @@ export class StrokeEngine {
       case 'impasto':    return 0.07
       case 'oil':        return 0.045
       case 'bucket':     return 0.9
+      case 'profibrush': return this.settings.tex?.spacing ?? DEFAULT_TEX.spacing
     }
   }
 
@@ -280,11 +293,62 @@ export class StrokeEngine {
       case 'impasto':    this.stampImpasto(point, r);    break
       case 'oil':        this.stampOil(point, r);        break
       case 'bucket':     this.stampBucket(point);        break
+      case 'profibrush': this.stampTexture(point, r);    break
     }
     this.prevStampX = point.x
     this.prevStampY = point.y
     this.prevStampDia = dia
     this.hasPrevStamp = true
+  }
+
+  // TEXTURE BRUSH (profibrush) — Sumopaint-style flat stamp-along-path. The anisotropic bristle tip is
+  // stamped along the barely-smoothed path, each rotated to a fixed angle (or the local tangent + offset),
+  // with velocity/pressure dynamics, fade-in, ink fade, and seeded per-stamp colour / angle / scale /
+  // jitter. The directional width variation comes from the elongated tip held at an angle to travel.
+  private stampTexture(p: StrokePoint, r: number) {
+    const tex = this.settings.tex ?? DEFAULT_TEX
+    const D2R = Math.PI / 180
+    // local tangent
+    let dx = p.x - this.prevStampX, dy = p.y - this.prevStampY
+    let len = Math.hypot(dx, dy)
+    if (!this.hasPrevStamp || len < 1e-4) { dx = 1; dy = 0; len = 1 }
+    dx /= len; dy /= len
+    let rot = (tex.auto ? Math.atan2(dy, dx) : 0) + tex.rotate * D2R
+    if (tex.angleRandom > 0) rot += (this.rng() - 0.5) * tex.angleRandom * D2R
+
+    // dynamics: faster travel → thinner + lighter. (r already carries pressure via brushDiameter.)
+    const dyn = 1 - tex.dynamics * Math.min(1, this.strokeSpeed / 2)
+    const sr = 1 + (this.rng() - 0.5) * 2 * tex.scaleRandom
+    const fadeIn = tex.fadeIn > 0 ? Math.min(1, (this.texIndex + 1) / tex.fadeIn) : 1
+    const ink = tex.inkFade > 0
+      ? Math.max(1 - tex.inkFade, 1 - tex.inkFade * Math.min(1, this.texDist / (this.settings.size * 30)))
+      : 1
+
+    const halfWid = Math.max(0.5, r * dyn * sr * fadeIn)
+    const halfLen = halfWid * Math.max(1, tex.aspect)
+    const alpha = Math.max(0, Math.min(1,
+      this.settings.opacity * (this.settings.pressureSim ? (0.55 + 0.45 * p.pressure) : 1) * dyn * fadeIn * ink,
+    ))
+
+    let color = this.settings.color === 'transparent' ? '#000000' : this.settings.color
+    if (tex.colorRandom > 0) color = this.jitterColor(color, tex.colorRandom)
+
+    // small random perpendicular offset off the path
+    let sx = p.x, sy = p.y
+    if (tex.jitter > 0) { const j = (this.rng() - 0.5) * tex.jitter * r * 2; sx += -dy * j; sy += dx * j }
+
+    if (this.backend.drawTip) this.backend.drawTip(sx, sy, halfLen, halfWid, rot, color, alpha)
+    else this.fillShape(sx, sy, halfWid, color, alpha) // fallback: round dab if the backend has no tip
+    this.texIndex++
+    this.texDist += len
+  }
+
+  /** Per-stamp colour jitter (RGB), seeded. `amount` 0..100 (~40 = subtle painterly variation). */
+  private jitterColor(hex: string, amount: number): string {
+    const { r, g, b } = this.hexToRgb(hex)
+    const k = (amount / 100) * 46
+    const j = () => (this.rng() - 0.5) * 2 * k
+    return this.rgbToHex(r + j(), g + j(), b + j())
   }
 
   private withAlpha(hex: string, a: number): string {

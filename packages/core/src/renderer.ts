@@ -131,4 +131,16 @@ export interface RendererBackend {
     rectX: number, rectY: number, w: number, h: number,
     worldX: number, worldY: number,
   ): void
+
+  // ── texture-brush stamp (profibrush) ─────────────────────────────────────────
+  /**
+   * Draw the elongated bristle TIP centred at (x,y), scaled to half-extents (halfLen along the tip's long
+   * axis, halfWid across), rotated by `rotation` RADIANS, tinted `color` at `alpha`. Optional — backends
+   * that don't implement it make the profibrush fall back to a round dab (engine guards on its presence).
+   */
+  drawTip?(
+    x: number, y: number,
+    halfLen: number, halfWid: number,
+    rotation: number, color: string, alpha: number,
+  ): void
 }
