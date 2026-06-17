@@ -14,7 +14,6 @@ import { LiveNeighborStrip } from './render/LiveNeighborStrip'
 import { useLiveNeighborsNative } from './hooks/useLiveNeighborsNative'
 import { readSimConfig, writeSimConfig, restartSim, simAllowed } from './lib/simConfig'
 import { DEFAULT_SETTINGS, TOOL_IDS } from './tools'
-import { Slider } from './ui/Slider'
 import type { LayerMeta } from './ui/LayersPanel'
 import { Text } from './components/ui/text'
 import { cn } from './lib/cn'
@@ -61,7 +60,7 @@ function toModerationDataUrl(composite: SkImage): string {
  */
 // Bump on every native edit batch so we can confirm on-device that the iPad loaded the fresh bundle
 // (this worktree's Metro doesn't auto-watch, so stale bundles are the usual false alarm).
-const BUILD = 'b14'
+const BUILD = 'b18'
 export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: string; tile?: Tile; canvas?: Canvas; onExit?: () => void }) {
   // Founder constraints — restrict the tool bar + colour palette to what this canvas allows.
   const allowedTools = canvas?.allowedTools?.length ? TOOL_IDS.filter((t) => canvas.allowedTools.includes(t)) : TOOL_IDS
@@ -174,8 +173,6 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
   }
   const toggleVisible = (id: number) =>
     setLayers((ls) => ls.map((L) => (L.id === id ? { ...L, visible: !L.visible } : L)))
-  const setLayerOpacity = (v: number) =>
-    setLayers((ls) => ls.map((L) => (L.id === activeId ? { ...L, opacity: v } : L)))
 
   // Submit the tile artwork. Composite the VISIBLE layers (array order = z-order, bottom→top)
   // at their per-layer opacity into one transparent PNG — WYSIWYG with what's on screen, and
@@ -427,8 +424,6 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
           <View pointerEvents="box-none" className="absolute inset-x-0 bottom-[104px] items-center px-3">
             <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} className="w-full max-w-md rounded-2xl bg-card shadow-lg" contentContainerClassName="gap-2 p-3">
               <ToolSettingsPanel tool={tool} settings={s} onChange={patch} palette={palette} onEyedrop={startEyedrop} />
-              <View className="h-px bg-border" />
-              <Slider label="Layer α" value={activeLayer.opacity} min={0} max={1} step={0.01} onChange={setLayerOpacity} format={(v) => `${Math.round(v * 100)}%`} />
               {simAllowed() && (
                 <View className="mt-0.5 flex-row items-center gap-1.5">
                   <Text className="text-[10px] font-bold uppercase text-muted-foreground">DEV</Text>

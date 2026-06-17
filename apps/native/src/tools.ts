@@ -4,8 +4,10 @@ import { DEFAULT_SETTINGS, type ToolId, type ToolSettings } from '@drawie/core'
 // of the native app keeps a single import site for tool config.
 export { DEFAULT_SETTINGS }
 
+// 'oil' is intentionally NOT selectable — the impasto/relief experiment regressed fast-stroke rendering
+// for other tools and is parked on the feat/oil-impasto branch. The ToolId + engine case still exist.
 export const TOOL_IDS: ToolId[] = [
-  'brush', 'drybrush', 'inkbrush', 'oil', 'pencil', 'pen', 'marker', 'spray', 'bucket', 'eraser', 'smudge', 'waterdrop',
+  'brush', 'drybrush', 'inkbrush', 'pencil', 'pen', 'marker', 'spray', 'bucket', 'eraser', 'smudge', 'waterdrop',
 ]
 
 /**
