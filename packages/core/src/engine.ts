@@ -107,7 +107,8 @@ export class StrokeEngine {
       this.bristleDist = 0
       this.generateBristles(this.tool === 'inkbrush')
     } else if (this.tool === 'oil') {
-      this.bristleDist = 0 // oil uses bristleDist for its streak noise, but not the bristle set
+      this.bristleDist = 0
+      this.generateBristles(false) // Phase B: oil reuses the bristle set to deposit a ridged height field
     }
     this.stamp(sp)
   }
@@ -342,33 +343,52 @@ export class StrokeEngine {
     this.backend.fillRect(0, 0, this.backend.width, this.backend.height, color, this.settings.opacity, 'destination-over')
   }
 
-  // OIL PAINT (Phase A impasto) — deposits FLAT colour (the albedo) plus a soft round HEIGHT bump into the
-  // separate height buffer; the relief + ridge sheen come entirely from the lighting pass, NOT from faked
-  // shading here. Height accumulates (impasto build-up) as the stroke overlaps itself, so a dragged stroke
-  // grows a raised ridge. With no height buffer (e.g. a flat replay) oil just lays the flat colour.
+  // OIL PAINT (Phase A relief + Phase B bristle) — deposits FLAT colour (the albedo) plus a BRISTLED HEIGHT
+  // field into the separate height buffer; all relief, ridge sheen, and bristle streaks come from the
+  // lighting pass, NOT from faked shading here. Each per-stroke bristle lays a fine ridge across the brush
+  // width (oriented perpendicular to travel) and lifts on/off via continuous noise, so the dragged stroke
+  // grows raised ridges with grooves between — the troweled oil look once lit. Height accumulates
+  // (impasto build-up). With no height buffer (flat replay) oil just lays the flat colour.
   private stampOil(p: StrokePoint, r: number) {
     const color = this.settings.color === 'transparent' ? '#000000' : this.settings.color
+    // Travel direction → orient the bristle ridges perpendicular to it.
+    let dx = p.x - this.prevStampX
+    let dy = p.y - this.prevStampY
+    let len = Math.hypot(dx, dy)
+    if (!this.hasPrevStamp || len < 1e-4) { dx = 1; dy = 0; len = 1 }
+    else { this.bristleDist += len }
+    dx /= len; dy /= len
+    const perpX = -dy, perpY = dx
     const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1)
     const a = this.applyDilution(baseAlpha)
-    // Opaque paint body (albedo only — the relief comes from the height pass).
+    // Opaque paint body (albedo only — the relief/bristles come from the height pass).
     this.fillShape(p.x, p.y, r, color, Math.min(1, a))
 
     if (!this.heightBackend) return
-    // HEIGHT deposit: soft round white bump whose coverage = thickness. `flow` (the Strength slider) sets
-    // how much height each dab lays; pressure scales it. Soft falloff → rounded relief instead of a wall.
-    const flow = this.settings.strength
-    const hAlpha = Math.min(0.92, (0.22 + 0.6 * flow) * (this.settings.pressureSim ? (0.5 + 0.5 * p.pressure) : 1))
-    const reach = r * 1.04
+    const flow = this.settings.strength // 'flow' = how much height each dab lays
+    const pScale = this.settings.pressureSim ? (0.5 + 0.5 * p.pressure) : 1
     const stops: GradientStop[] = [
       { offset: 0,    color: 'rgba(255,255,255,1)' },
-      { offset: 0.5,  color: 'rgba(255,255,255,1)' },
+      { offset: 0.6,  color: 'rgba(255,255,255,1)' },
       { offset: 1,    color: 'rgba(255,255,255,0)' },
     ]
-    this.heightBackend.fillRadialGradient(
-      p.x, p.y, 0, reach, stops,
-      { x: p.x - reach - 1, y: p.y - reach - 1, w: reach * 2 + 2, h: reach * 2 + 2 },
-      undefined, hAlpha,
-    )
+    const br = Math.max(0.6, r * 0.1)   // fine bristle thickness
+    const reach = br * 1.3
+    for (const b of this.bristles) {
+      // Continuous noise along the travelled distance → each bristle fades in/out, leaving grooves.
+      const flick = this.smoothNoise(this.bristleDist * 0.05 + b.seed, b.seed)
+      if (flick < 0.16) continue // bristle lifted → groove (no thickness laid here)
+      const off = b.off * r * 0.94
+      const sx = p.x + perpX * off
+      const sy = p.y + perpY * off
+      const hw = (0.35 + 0.65 * (b.w / 1.7)) * (0.6 + 0.4 * flick) // per-bristle height weight
+      const hAlpha = Math.min(0.96, (0.2 + 0.7 * flow) * hw * pScale)
+      this.heightBackend.fillRadialGradient(
+        sx, sy, 0, reach, stops,
+        { x: sx - reach - 1, y: sy - reach - 1, w: reach * 2 + 2, h: reach * 2 + 2 },
+        undefined, hAlpha,
+      )
+    }
   }
 
   /** Sample the destination colour at p; returns null on transparent / out of bounds. */
