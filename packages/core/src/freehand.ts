@@ -149,9 +149,10 @@ export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[]
   if (spine.length === 0) return
   const color = settings.color === 'transparent' ? '#000000' : settings.color
 
-  // STEP 1 — solid ribbon
+  // STEP 1 — solid ribbon. `softness` feathers the edge (blur sigma scales with brush size).
+  const blur = Math.max(0, settings.softness) * settings.size * 0.12
   const outline = outlineFromSpine(spine)
-  if (outline.length >= 6) backend.fillPath(outline, color, settings.opacity)
+  if (outline.length >= 6) backend.fillPath(outline, color, settings.opacity, undefined, blur)
 
   // STEP 2 — lengthwise streak overlay. Commit-time only by default (drawing N streak polylines every
   // frame on a growing stroke was the lag); the live preview shows just the ribbon.

@@ -147,7 +147,8 @@ export interface RendererBackend {
   // ── filled polygon (profibrush variable-width ribbon) ────────────────────────
   /**
    * Fill the closed polygon `pts` (flat [x0,y0,x1,y1,...]) with `color` at `alpha`, non-zero winding so
-   * self-overlapping outlines don't leave holes. Optional — used by the perfect-freehand stroke ribbon.
+   * self-overlapping outlines don't leave holes. `blur` (px sigma, default 0) feathers the edge — the
+   * profibrush "Softness". Optional — used by the perfect-freehand stroke ribbon.
    */
-  fillPath?(pts: number[], color: string, alpha: number, composite?: CompositeOp): void
+  fillPath?(pts: number[], color: string, alpha: number, composite?: CompositeOp, blur?: number): void
 }

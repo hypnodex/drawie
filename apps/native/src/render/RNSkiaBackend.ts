@@ -4,7 +4,7 @@ import type {
 import { getTipAlpha } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
-  FilterMode, MipmapMode,
+  FilterMode, MipmapMode, BlurStyle,
   type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage, type SkData,
 } from '@shopify/react-native-skia'
 import { getTexturePixels } from './textures'
@@ -219,7 +219,7 @@ export class RNSkiaBackend implements RendererBackend {
     this.skc.drawImage(img, 0, 0, p)
   }
 
-  fillPath(pts: number[], color: string, alpha: number, composite?: CompositeOp) {
+  fillPath(pts: number[], color: string, alpha: number, composite?: CompositeOp, blur = 0) {
     if (pts.length < 6) return
     const path = Skia.Path.Make()
     path.moveTo(pts[0], pts[1])
@@ -233,7 +233,10 @@ export class RNSkiaBackend implements RendererBackend {
     p.setColor(Skia.Color(color))
     p.setAlphaf(Math.max(0, Math.min(1, alpha)))
     p.setBlendMode(this.blend(composite))
+    const mf = blur > 0 ? Skia.MaskFilter.MakeBlur(BlurStyle.Normal, blur, true) : null
+    if (mf) p.setMaskFilter(mf)
     this.skc.drawPath(path, p)
+    if (mf) { p.setMaskFilter(null); (mf as unknown as { dispose?: () => void }).dispose?.() }
     path.dispose()
   }
 

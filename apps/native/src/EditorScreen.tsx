@@ -60,7 +60,7 @@ function toModerationDataUrl(composite: SkImage): string {
  */
 // Bump on every native edit batch so we can confirm on-device that the iPad loaded the fresh bundle
 // (this worktree's Metro doesn't auto-watch, so stale bundles are the usual false alarm).
-const BUILD = 'b30'
+const BUILD = 'b31'
 export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: string; tile?: Tile; canvas?: Canvas; onExit?: () => void }) {
   // Founder constraints — restrict the tool bar + colour palette to what this canvas allows.
   const allowedTools = canvas?.allowedTools?.length ? TOOL_IDS.filter((t) => canvas.allowedTools.includes(t)) : TOOL_IDS
