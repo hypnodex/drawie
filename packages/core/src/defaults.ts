@@ -5,8 +5,9 @@ import type { AssistSettings, ToolSettingsMap, TextureBrushSettings } from './ty
  *  across it); `bristles` is the streak count; `colorRandom` the per-streak painterly variation. */
 export const DEFAULT_TEX: TextureBrushSettings = {
   bristles: 6, smoothing: 0.55, taper: 0.5, angle: 45, angleWidth: 0,
+  fadeIn: 0.4, fadeOut: 0.4,
   spacing: 0.06, aspect: 2.6, rotate: 38, auto: false, dynamics: 0.35,
-  fadeIn: 5, fadeOut: 8, inkFade: 0.1, colorRandom: 35, angleRandom: 0, scaleRandom: 0, jitter: 0.25,
+  inkFade: 0.1, colorRandom: 35, angleRandom: 0, scaleRandom: 0, jitter: 0.25,
 }
 
 /**

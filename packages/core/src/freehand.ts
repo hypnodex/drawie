@@ -19,14 +19,17 @@ export interface FreehandOptions {
   size: number       // full stroke width at full pressure
   thinning: number   // 0..1 — how much low pressure thins the stroke
   streamline: number // 0..1 — input smoothing
-  taper: number      // taper distance at each end (px) → rounded ends
+  taper: number      // WIDTH taper distance at each end (px) → tapered/rounded ends
+  fadeIn: number     // OPACITY fade-in distance at the START (px); 0 = hard start
+  fadeOut: number    // OPACITY fade-out distance at the END (px); 0 = hard end
   minPressure: number
   angle: number      // flat-brush angle in RADIANS (for angle-based width)
   angleWidth: number // 0..1 — how much the width varies with travel angle (0 = round)
 }
 
-/** A resampled centerline point with its local normal, half-width radius, and running length. */
-export interface SpinePoint { x: number; y: number; nx: number; ny: number; radius: number; len: number }
+/** A resampled centerline point with its local normal, half-width radius, running length, and opacity
+ *  fade factor (0..1, ramps in/out over Fade In/Out at the path ends). */
+export interface SpinePoint { x: number; y: number; nx: number; ny: number; radius: number; len: number; fade: number }
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n)
 const cr = (p0: number, p1: number, p2: number, p3: number, t: number) => {
@@ -49,7 +52,7 @@ export function buildSpine(input: FreehandInput[], opt: FreehandOptions): SpineP
   }
   const radiusAt = (pressure: number) => Math.max(0.2, (opt.size / 2) * (1 - opt.thinning * (1 - Math.max(opt.minPressure, pressure))))
 
-  if (sm.length === 1) return [{ x: sm[0].x, y: sm[0].y, nx: 0, ny: 1, radius: radiusAt(sm[0].pressure), len: 0 }]
+  if (sm.length === 1) return [{ x: sm[0].x, y: sm[0].y, nx: 0, ny: 1, radius: radiusAt(sm[0].pressure), len: 0, fade: 1 }]
 
   // resample to uniform arc length via Catmull-Rom
   const STEP = 3
@@ -84,7 +87,15 @@ export function buildSpine(input: FreehandInput[], opt: FreehandOptions): SpineP
       const tp = Math.min(clamp01(len[i] / opt.taper), clamp01((total - len[i]) / opt.taper))
       radius *= tp * tp * (3 - 2 * tp)
     }
-    spine.push({ x: p.x, y: p.y, nx: -ty, ny: tx, radius: Math.max(0.2, radius), len: len[i] })
+    // OPACITY fade in/out at the ends (independent of the width taper above)
+    let fade = 1
+    if (opt.fadeIn > 0 || opt.fadeOut > 0) {
+      const fi = opt.fadeIn > 0 ? clamp01(len[i] / opt.fadeIn) : 1
+      const fo = opt.fadeOut > 0 ? clamp01((total - len[i]) / opt.fadeOut) : 1
+      const f = Math.min(fi, fo)
+      fade = f * f * (3 - 2 * f)
+    }
+    spine.push({ x: p.x, y: p.y, nx: -ty, ny: tx, radius: Math.max(0.2, radius), len: len[i], fade })
   }
   return spine
 }
@@ -114,6 +125,8 @@ export function freehandOptions(settings: ToolSettings): FreehandOptions {
     thinning: settings.pressureSim ? 0.5 : 0,
     streamline: tex.smoothing,
     taper: settings.size * tex.taper,
+    fadeIn: settings.size * tex.fadeIn,
+    fadeOut: settings.size * tex.fadeOut,
     minPressure: 0.06,
     angle: tex.angle * Math.PI / 180,
     angleWidth: tex.angleWidth,
@@ -149,9 +162,21 @@ export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[]
   if (spine.length === 0) return
   const color = settings.color === 'transparent' ? '#000000' : settings.color
 
-  // STEP 1 — solid ribbon
-  const outline = outlineFromSpine(spine)
-  if (outline.length >= 6) backend.fillPath(outline, color, settings.opacity)
+  // STEP 1 — the variable-width ribbon. At COMMIT we use backend.fillStrip (a vertex mesh) for per-vertex
+  // OPACITY (so Fade In/Out ramps the alpha along the length, smooth + seamless). The LIVE preview and any
+  // backend without a mesh fall back to a flat outline at constant opacity (cheaper, no per-frame mesh).
+  if (withStreaks && backend.fillStrip && spine.length >= 2) {
+    const verts: number[] = [], alphas: number[] = []
+    for (const sp of spine) {
+      verts.push(sp.x + sp.nx * sp.radius, sp.y + sp.ny * sp.radius, sp.x - sp.nx * sp.radius, sp.y - sp.ny * sp.radius)
+      const a = settings.opacity * sp.fade
+      alphas.push(a, a)
+    }
+    backend.fillStrip(verts, color, alphas)
+  } else {
+    const outline = outlineFromSpine(spine)
+    if (outline.length >= 6) backend.fillPath(outline, color, settings.opacity * (spine[0]?.fade ?? 1))
+  }
 
   // STEP 2 — lengthwise streak overlay. Commit-time only by default (drawing N streak polylines every
   // frame on a growing stroke was the lag); the live preview shows just the ribbon.
@@ -175,7 +200,7 @@ export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[]
       if (has) {
         const slow = noise1(sp.len * 0.018 + ns) - 0.5
         const col = shiftColor(color, hue, val, slow, cAmt)
-        const a = Math.max(0, Math.min(1, baseAlpha * (0.6 + 0.7 * (slow + 0.5))))
+        const a = Math.max(0, Math.min(1, baseAlpha * (0.6 + 0.7 * (slow + 0.5)) * sp.fade))
         backend.strokeLine(px, py, ox, oy, lw, col, a)
       }
       px = ox; py = oy; has = true
