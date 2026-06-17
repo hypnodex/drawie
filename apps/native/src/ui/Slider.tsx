@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated'
@@ -25,27 +25,36 @@ export function Slider({
   const frac = Math.max(0, Math.min(1, (value - min) / (max - min)))
   const thumb = useSharedValue(frac)
   const wSv = useSharedValue(1)
-  const dragging = useSharedValue(false)
+  // `dragging` is a JS flag, NOT a shared value: a shared value's JS-side copy lags the UI-thread write
+  // by a frame, so the sync effect below would still read `false` on the first drag and reset the thumb
+  // back to the current value mid-drag — that was the "first drag sticks at the default value" glitch.
+  // setDragging is dispatched via runOnJS IN ORDER (true is queued before the first commit), so by the
+  // time a commit re-renders, the effect reliably knows a drag is in progress.
+  const [dragging, setDragging] = useState(false)
+
+  // Stable commit that always reads the latest props (the gesture is created once, so a worklet closure
+  // would otherwise pin the first render's onChange / min / max).
+  const cfg = useRef({ min, max, step, onChange }); cfg.current = { min, max, step, onChange }
   const lastCommit = useRef(0)
-
-  // Sync the thumb to an EXTERNAL value change (tool switch etc.) — but never while dragging.
-  useEffect(() => { if (!dragging.value) thumb.value = frac }, [frac, dragging, thumb])
-
-  const commit = (f: number, throttle: boolean) => {
+  const commit = useCallback((f: number, throttle: boolean) => {
     const now = Date.now()
     if (throttle && now - lastCommit.current < 33) return
     lastCommit.current = now
-    const snapped = Math.round((min + f * (max - min)) / step) * step
-    onChange(Math.max(min, Math.min(max, snapped)))
-  }
+    const c = cfg.current
+    const snapped = Math.round((c.min + f * (c.max - c.min)) / c.step) * c.step
+    c.onChange(Math.max(c.min, Math.min(c.max, snapped)))
+  }, [])
+
+  // Sync the thumb to an EXTERNAL value change (tool switch etc.) — never while dragging.
+  useEffect(() => { if (!dragging) thumb.value = frac }, [frac, dragging, thumb])
 
   const pan = useRef(
     Gesture.Pan()
       .minDistance(0)
-      .onBegin((e) => { 'worklet'; dragging.value = true; const f = Math.max(0, Math.min(1, e.x / wSv.value)); thumb.value = f; runOnJS(commit)(f, true) })
+      .onBegin((e) => { 'worklet'; runOnJS(setDragging)(true); const f = Math.max(0, Math.min(1, e.x / wSv.value)); thumb.value = f; runOnJS(commit)(f, true) })
       .onUpdate((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / wSv.value)); thumb.value = f; runOnJS(commit)(f, true) })
       .onEnd((e) => { 'worklet'; const f = Math.max(0, Math.min(1, e.x / wSv.value)); thumb.value = f; runOnJS(commit)(f, false) })
-      .onFinalize(() => { 'worklet'; dragging.value = false }),
+      .onFinalize(() => { 'worklet'; runOnJS(setDragging)(false) }),
   ).current
 
   const fillStyle = useAnimatedStyle(() => ({ width: `${thumb.value * 100}%` }))
