@@ -24,10 +24,11 @@ export type BrushShape = 'circle' | 'square'
  * tangent + offset.
  */
 export interface TextureBrushSettings {
-  spacing: number     // distance between stamps as a fraction of diameter (low ~0.045 = continuous)
-  aspect: number      // tip elongation = length / width (1 = round, >1 = flat/anisotropic)
-  rotate: number      // fixed angle offset in DEGREES added to each stamp's rotation
-  auto: boolean       // auto-rotate each stamp to the local path tangent (then + rotate offset)
+  bristles: number    // RAKE model — number of continuous hairs spread across the brush width (12..30)
+  spacing: number     // polyline segment length as a fraction of diameter (small = smooth hairs)
+  aspect: number      // (legacy tip param — unused by the rake model)
+  rotate: number      // (legacy tip param — unused by the rake model)
+  auto: boolean       // (legacy tip param — unused by the rake model)
   dynamics: number    // 0..1 — velocity → size/opacity (faster ⇒ thinner/lighter)
   fadeIn: number      // taper size/opacity over the first N stamps (0 = off)
   fadeOut: number     // taper over the last N stamps (0 = off; needs the full path → replay/end)

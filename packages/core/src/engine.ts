@@ -66,8 +66,11 @@ export class StrokeEngine {
   private bristles: { off: number; w: number; dry: number; seed: number }[] = []
   private bristleDist = 0
 
-  // texture brush (profibrush): per-stroke stamp index (fade-in), travelled distance (ink fade), and the
-  // latest travel speed (velocity dynamics). Reset on begin.
+  // texture brush (profibrush) — RAKE model. Per-stroke hairs, each with a perpendicular offset across the
+  // brush width, a fixed per-hair colour/opacity offset, and the previous offset point so it draws as a
+  // CONTINUOUS thin polyline (not repeated stamps). Plus stamp index (fade-in), travelled distance (ink
+  // fade), latest speed (dynamics). Reset on begin.
+  private rake: { off: number; hue: number; val: number; opa: number; seed: number; lx: number; ly: number; has: boolean }[] = []
   private texIndex = 0
   private texDist = 0
   private strokeSpeed = 0
@@ -113,6 +116,7 @@ export class StrokeEngine {
       this.bristleDist = 0 // oil uses bristleDist for its streak noise, but not the bristle set
     } else if (this.tool === 'profibrush') {
       this.texIndex = 0; this.texDist = 0; this.strokeSpeed = 0
+      this.generateRake()
     }
     this.stamp(sp)
   }
@@ -301,56 +305,78 @@ export class StrokeEngine {
     this.hasPrevStamp = true
   }
 
-  // TEXTURE BRUSH (profibrush) — Sumopaint-style flat stamp-along-path. The anisotropic bristle tip is
-  // stamped along the barely-smoothed path, each rotated to a fixed angle (or the local tangent + offset),
-  // with velocity/pressure dynamics, fade-in, ink fade, and seeded per-stamp colour / angle / scale /
-  // jitter. The directional width variation comes from the elongated tip held at an angle to travel.
+  /** Build the rake's hairs once per stroke: evenly spread across [-1,1] with a small per-hair offset
+   *  jitter, plus fixed per-hair colour/opacity offsets. Seeded → deterministic on web + native. */
+  private generateRake() {
+    const tex = this.settings.tex ?? DEFAULT_TEX
+    const N = Math.max(2, Math.round(tex.bristles ?? DEFAULT_TEX.bristles))
+    const arr: typeof this.rake = []
+    for (let i = 0; i < N; i++) {
+      const base = (i / (N - 1)) * 2 - 1                          // evenly -1..1
+      const jit = (this.rng() - 0.5) * (2 / N) * tex.jitter * 3   // small per-hair offset
+      arr.push({
+        off: Math.max(-1.1, Math.min(1.1, base + jit)),
+        hue: (this.rng() - 0.5) * 2,   // fixed per-hair colour offset (across the hairs)
+        val: (this.rng() - 0.5) * 2,
+        opa: 0.62 + this.rng() * 0.38, // per-hair opacity
+        seed: this.rng() * 1000,
+        lx: 0, ly: 0, has: false,
+      })
+    }
+    this.rake = arr
+  }
+
+  // TEXTURE BRUSH (profibrush) — RAKE model. Each call advances every hair by one short segment: the hair
+  // sits at a fixed perpendicular offset across the brush width, projected onto the LOCAL NORMAL, and is
+  // drawn as a CONTINUOUS thin round-capped line from its previous point to the new one. Many overlapping
+  // hairs (each a slightly different colour/opacity, drifting slowly along its length) blend into one
+  // smeared, streaky single-pull stroke — no repeated stamp shapes. Width = the hair spread (pressure +
+  // dynamics); it narrows/widens with pressure and fans through curves.
   private stampTexture(p: StrokePoint, r: number) {
     const tex = this.settings.tex ?? DEFAULT_TEX
-    const D2R = Math.PI / 180
-    // local tangent
     let dx = p.x - this.prevStampX, dy = p.y - this.prevStampY
     let len = Math.hypot(dx, dy)
     if (!this.hasPrevStamp || len < 1e-4) { dx = 1; dy = 0; len = 1 }
+    else this.texDist += len
     dx /= len; dy /= len
-    let rot = (tex.auto ? Math.atan2(dy, dx) : 0) + tex.rotate * D2R
-    if (tex.angleRandom > 0) rot += (this.rng() - 0.5) * tex.angleRandom * D2R
+    const nx = -dy, ny = dx // local normal — the spread stays perpendicular to travel
 
-    // dynamics: faster travel → thinner + lighter. (r already carries pressure via brushDiameter.)
     const dyn = 1 - tex.dynamics * Math.min(1, this.strokeSpeed / 2)
-    const sr = 1 + (this.rng() - 0.5) * 2 * tex.scaleRandom
     const fadeIn = tex.fadeIn > 0 ? Math.min(1, (this.texIndex + 1) / tex.fadeIn) : 1
     const ink = tex.inkFade > 0
       ? Math.max(1 - tex.inkFade, 1 - tex.inkFade * Math.min(1, this.texDist / (this.settings.size * 30)))
       : 1
+    const halfWid = Math.max(0.6, r * dyn * fadeIn) // spread half-width (pressure via r, + dynamics/fade-in)
+    const N = this.rake.length || 1
+    const lineW = Math.max(1, (2 * halfWid) / Math.max(1, N - 1) * 1.5) // hairs slightly overlap → continuous
+    const pAlpha = this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1
+    const base = this.settings.color === 'transparent' ? '#000000' : this.settings.color
+    const cAmt = tex.colorRandom / 100
 
-    // Dynamics + scale-random affect SIZE (so the width varies with speed); alpha stays solid so heavily
-    // overlapping stamps build to an even, continuous stroke instead of going patchy/translucent.
-    const halfWid = Math.max(0.5, r * dyn * sr * fadeIn)
-    const halfLen = halfWid * Math.max(1, tex.aspect)
-    const alpha = Math.max(0, Math.min(1,
-      this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1) * fadeIn * ink,
-    ))
-
-    let color = this.settings.color === 'transparent' ? '#000000' : this.settings.color
-    if (tex.colorRandom > 0) color = this.jitterColor(color, tex.colorRandom)
-
-    // small random perpendicular offset off the path
-    let sx = p.x, sy = p.y
-    if (tex.jitter > 0) { const j = (this.rng() - 0.5) * tex.jitter * r * 2; sx += -dy * j; sy += dx * j }
-
-    if (this.backend.drawTip) this.backend.drawTip(sx, sy, halfLen, halfWid, rot, color, alpha)
-    else this.fillShape(sx, sy, halfWid, color, alpha) // fallback: round dab if the backend has no tip
+    for (const b of this.rake) {
+      const ox = p.x + nx * b.off * halfWid
+      const oy = p.y + ny * b.off * halfWid
+      if (b.has) {
+        const slow = this.smoothNoise(this.texDist * 0.02 + b.seed, b.seed) - 0.5 // -0.5..0.5, slow along
+        const color = this.rakeColor(base, b.hue, b.val, slow, cAmt)
+        const alpha = Math.max(0, Math.min(1, this.settings.opacity * b.opa * pAlpha * fadeIn * ink * (0.85 + 0.3 * (slow + 0.5))))
+        this.backend.strokeLine(b.lx, b.ly, ox, oy, lineW, color, alpha)
+      }
+      b.lx = ox; b.ly = oy; b.has = true
+    }
     this.texIndex++
-    this.texDist += len
   }
 
-  /** Per-stamp colour jitter (RGB), seeded. `amount` 0..100 (~40 = subtle painterly variation). */
-  private jitterColor(hex: string, amount: number): string {
+  /** Per-hair colour: a small RGB offset from `hue`/`val` (fixed across the hairs) + a slow drift `slow`
+   *  along the hair, scaled by `amt` (colorRandom/100). Subtle → painterly streaks, not a rainbow. */
+  private rakeColor(hex: string, hue: number, val: number, slow: number, amt: number): string {
+    if (amt <= 0) return hex
     const { r, g, b } = this.hexToRgb(hex)
-    const k = (amount / 100) * 46
-    const j = () => (this.rng() - 0.5) * 2 * k
-    return this.rgbToHex(r + j(), g + j(), b + j())
+    const k = amt * 38
+    const dr = (hue * 0.8 + slow) * k
+    const dg = (val * 0.8 - slow * 0.4) * k
+    const db = (-hue * 0.6 + slow) * k
+    return this.rgbToHex(r + dr, g + dg, b + db)
   }
 
   private withAlpha(hex: string, a: number): string {

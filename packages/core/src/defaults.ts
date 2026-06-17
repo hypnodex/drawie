@@ -1,12 +1,11 @@
 import type { AssistSettings, ToolSettingsMap, TextureBrushSettings } from './types'
 
-/** Default Texture-Brush (profibrush) params. Tuned for a SOLID, fluid, continuous directional stroke
- *  (not a scatter brush): very tight spacing → heavy overlap, no scatter/scale/angle randomness, fixed
- *  angled flat tip so the width visibly varies with travel direction; only subtle colour jitter + faint
- *  grain for the painterly look. Toggle `auto` for the tip to follow the path at a constant width. */
+/** Default Texture-Brush (profibrush) params — RAKE model: N continuous hairs drawn as thin polylines
+ *  offset across the brush width, blending into one smeared, streaky single-pull stroke (no repeated
+ *  stamp shapes). colorRandom gives the per-hair painterly variation; jitter is a small per-hair offset. */
 export const DEFAULT_TEX: TextureBrushSettings = {
-  spacing: 0.035, aspect: 2.6, rotate: 38, auto: false, dynamics: 0.4,
-  fadeIn: 5, fadeOut: 8, inkFade: 0.08, colorRandom: 35, angleRandom: 0, scaleRandom: 0, jitter: 0,
+  bristles: 18, spacing: 0.06, aspect: 2.6, rotate: 38, auto: false, dynamics: 0.35,
+  fadeIn: 5, fadeOut: 8, inkFade: 0.1, colorRandom: 35, angleRandom: 0, scaleRandom: 0, jitter: 0.25,
 }
 
 /**

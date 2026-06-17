@@ -40,7 +40,7 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
   impasto:    { name: 'Impasto',    subtitle: 'Thick raised paint, with depth',  usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: true,  usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
   oil:        { name: 'Oil Paint',  subtitle: 'Thick bristled paint with sheen',  usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
   bucket:     { name: 'BG color',   subtitle: 'Set the background (behind your art)', usesColor: true,  usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
-  profibrush: { name: 'Profi Brush', subtitle: 'Directional flat textured brush',    usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
+  profibrush: { name: 'Profi Brush', subtitle: 'Bristle rake — smeared streaky stroke', usesColor: true,  usesPressure: true,  usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
@@ -92,14 +92,11 @@ export function ToolSettingsPanel({
 
       {tool === 'profibrush' && (
         <>
-          <Slider label="Elong" value={tx.aspect} min={1} max={5} step={0.1} onChange={(v) => patchTex({ aspect: v })} format={(v) => `${v.toFixed(1)}×`} />
-          <Slider label="Angle" value={tx.rotate} min={0} max={180} step={1} onChange={(v) => patchTex({ rotate: v })} format={(v) => `${Math.round(v)}°`} />
-          <Slider label="Spacing" value={tx.spacing} min={0.01} max={0.3} step={0.005} onChange={(v) => patchTex({ spacing: v })} format={pct} />
-          <Slider label="Dynamics" value={tx.dynamics} min={0} max={1} step={0.01} onChange={(v) => patchTex({ dynamics: v })} format={pct} />
+          <Slider label="Bristles" value={tx.bristles} min={4} max={30} step={1} onChange={(v) => patchTex({ bristles: v })} format={(v) => `${Math.round(v)}`} />
           <Slider label="Color Rnd" value={tx.colorRandom} min={0} max={100} step={1} onChange={(v) => patchTex({ colorRandom: v })} format={(v) => `${Math.round(v)}`} />
-          <Slider label="Jitter" value={tx.jitter} min={0} max={0.5} step={0.01} onChange={(v) => patchTex({ jitter: v })} format={pct} />
+          <Slider label="Spread Rnd" value={tx.jitter} min={0} max={1} step={0.01} onChange={(v) => patchTex({ jitter: v })} format={pct} />
+          <Slider label="Dynamics" value={tx.dynamics} min={0} max={1} step={0.01} onChange={(v) => patchTex({ dynamics: v })} format={pct} />
           <Slider label="Fade In" value={tx.fadeIn} min={0} max={20} step={1} onChange={(v) => patchTex({ fadeIn: v })} format={(v) => `${Math.round(v)}`} />
-          <Toggle label="Auto-rotate to direction" Icon={PressureIcon} checked={tx.auto} onPress={() => patchTex({ auto: !tx.auto })} />
         </>
       )}
 
