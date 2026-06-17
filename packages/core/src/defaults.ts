@@ -1,10 +1,12 @@
 import type { AssistSettings, ToolSettingsMap, TextureBrushSettings } from './types'
 
-/** Default Texture-Brush (profibrush) params. Fixed angled flat tip → the stroke width visibly varies
- *  with travel direction (calligraphy-like); subtle colour jitter + fade-in give the painterly look. */
+/** Default Texture-Brush (profibrush) params. Tuned for a SOLID, fluid, continuous directional stroke
+ *  (not a scatter brush): very tight spacing → heavy overlap, no scatter/scale/angle randomness, fixed
+ *  angled flat tip so the width visibly varies with travel direction; only subtle colour jitter + faint
+ *  grain for the painterly look. Toggle `auto` for the tip to follow the path at a constant width. */
 export const DEFAULT_TEX: TextureBrushSettings = {
-  spacing: 0.045, aspect: 2.6, rotate: 40, auto: false, dynamics: 0.5,
-  fadeIn: 6, fadeOut: 8, inkFade: 0.12, colorRandom: 40, angleRandom: 4, scaleRandom: 0.18, jitter: 0.06,
+  spacing: 0.035, aspect: 2.6, rotate: 38, auto: false, dynamics: 0.4,
+  fadeIn: 5, fadeOut: 8, inkFade: 0.08, colorRandom: 35, angleRandom: 0, scaleRandom: 0, jitter: 0,
 }
 
 /**
@@ -33,7 +35,7 @@ export const DEFAULT_SETTINGS: ToolSettingsMap = {
   impasto:    { color: '#c0563b', size: 42, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1 },
   oil:        { color: '#e8732a', size: 46, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1, dilution: 0.25 },
   bucket:     { color: '#e8732a', size: 40, opacity: 1.0,  softness: 0.5, strength: 0.6,  pressureSim: false, wetPaint: false, ...COMMON },
-  profibrush: { color: '#2b2f36', size: 40, opacity: 0.9,  softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1, tex: { ...DEFAULT_TEX } },
+  profibrush: { color: '#c4366b', size: 44, opacity: 0.95, softness: 0.5, strength: 0.6,  pressureSim: true,  wetPaint: false, ...COMMON, hardness: 1, tex: { ...DEFAULT_TEX } },
 }
 
 export const DEFAULT_ASSIST: AssistSettings = {

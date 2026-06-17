@@ -324,10 +324,12 @@ export class StrokeEngine {
       ? Math.max(1 - tex.inkFade, 1 - tex.inkFade * Math.min(1, this.texDist / (this.settings.size * 30)))
       : 1
 
+    // Dynamics + scale-random affect SIZE (so the width varies with speed); alpha stays solid so heavily
+    // overlapping stamps build to an even, continuous stroke instead of going patchy/translucent.
     const halfWid = Math.max(0.5, r * dyn * sr * fadeIn)
     const halfLen = halfWid * Math.max(1, tex.aspect)
     const alpha = Math.max(0, Math.min(1,
-      this.settings.opacity * (this.settings.pressureSim ? (0.55 + 0.45 * p.pressure) : 1) * dyn * fadeIn * ink,
+      this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1) * fadeIn * ink,
     ))
 
     let color = this.settings.color === 'transparent' ? '#000000' : this.settings.color
