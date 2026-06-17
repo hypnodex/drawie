@@ -143,4 +143,11 @@ export interface RendererBackend {
     halfLen: number, halfWid: number,
     rotation: number, color: string, alpha: number,
   ): void
+
+  // ── filled polygon (profibrush variable-width ribbon) ────────────────────────
+  /**
+   * Fill the closed polygon `pts` (flat [x0,y0,x1,y1,...]) with `color` at `alpha`, non-zero winding so
+   * self-overlapping outlines don't leave holes. Optional — used by the perfect-freehand stroke ribbon.
+   */
+  fillPath?(pts: number[], color: string, alpha: number, composite?: CompositeOp): void
 }

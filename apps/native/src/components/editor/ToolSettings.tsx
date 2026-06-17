@@ -1,6 +1,5 @@
 import { View, Pressable } from 'react-native'
-import type { ToolId, ToolSettings as ToolSettingsType, BrushShape, TextureBrushSettings } from '@drawie/core'
-import { DEFAULT_TEX } from '@drawie/core'
+import type { ToolId, ToolSettings as ToolSettingsType, BrushShape } from '@drawie/core'
 import { Text } from '../ui/text'
 import { cn } from '../../lib/cn'
 import { Slider } from '../../ui/Slider'
@@ -56,8 +55,6 @@ export function ToolSettingsPanel({
 }) {
   const meta = TOOL_META[tool]
   const waterOnly = tool === 'waterdrop' && settings.color === 'transparent'
-  const tx = settings.tex ?? DEFAULT_TEX
-  const patchTex = (p: Partial<TextureBrushSettings>) => onChange({ tex: { ...tx, ...p } })
 
   return (
     <View className="gap-1">
@@ -88,16 +85,6 @@ export function ToolSettingsPanel({
 
       {tool !== 'bucket' && (
         <Slider label="Size" value={settings.size} min={1} max={240} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
-      )}
-
-      {tool === 'profibrush' && (
-        <>
-          <Slider label="Bristles" value={tx.bristles} min={4} max={30} step={1} onChange={(v) => patchTex({ bristles: v })} format={(v) => `${Math.round(v)}`} />
-          <Slider label="Color Rnd" value={tx.colorRandom} min={0} max={100} step={1} onChange={(v) => patchTex({ colorRandom: v })} format={(v) => `${Math.round(v)}`} />
-          <Slider label="Spread Rnd" value={tx.jitter} min={0} max={1} step={0.01} onChange={(v) => patchTex({ jitter: v })} format={pct} />
-          <Slider label="Dynamics" value={tx.dynamics} min={0} max={1} step={0.01} onChange={(v) => patchTex({ dynamics: v })} format={pct} />
-          <Slider label="Fade In" value={tx.fadeIn} min={0} max={20} step={1} onChange={(v) => patchTex({ fadeIn: v })} format={(v) => `${Math.round(v)}`} />
-        </>
       )}
 
       {meta.usesHardness && (

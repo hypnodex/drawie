@@ -6,7 +6,8 @@ import { Canvas, Image, Skia, type SkImage } from '@shopify/react-native-skia'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useSharedValue, runOnJS } from 'react-native-reanimated'
 import {
-  StrokeEngine, DEFAULT_ASSIST, type StrokeSample, type ModelStroke, type ToolId, type ToolSettings, type AssistSettings,
+  StrokeEngine, DEFAULT_ASSIST, renderProfiStroke,
+  type StrokeSample, type ModelStroke, type ToolId, type ToolSettings, type AssistSettings, type FreehandInput,
 } from '@drawie/core'
 import { RNSkiaBackend } from './render/RNSkiaBackend'
 
@@ -88,6 +89,13 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // The live surface image (shared value → UI-thread <Image> updates, no React re-render).
   const image = useSharedValue<SkImage | null>(backend.surface.makeImageSnapshot())
 
+  // profibrush (perfect-freehand) — NOT incremental stamping: the whole variable-width ribbon is
+  // re-rendered each frame on top of a pre-stroke snapshot (so there's no buildup and the result is
+  // identical regardless of draw speed), then committed to the surface at stroke end.
+  const profiActive = useRef(false)
+  const profiPts = useRef<FreehandInput[]>([])
+  const preStroke = useRef<SkImage | null>(null)
+
   // Active-stroke state (JS thread).
   const eng = useRef<StrokeEngine | null>(null)
   const samples = useRef<StrokeSample[]>([])
@@ -109,6 +117,11 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     requestAnimationFrame(() => {
       displayScheduled.current = false
       if (!alive.current) return
+      if (profiActive.current) {
+        // restore the canvas to before this stroke, then redraw the whole ribbon from all points so far
+        if (preStroke.current) backend.restoreFrom(preStroke.current)
+        renderProfiStroke(backend, profiPts.current, settingsRef.current, seed.current)
+      }
       backend.flush()
       const snap = backend.surface.makeImageSnapshot()
       const toDispose = prevDisplay.current
@@ -162,6 +175,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
       prevDisplay.current?.dispose?.()
       undoSnaps.current.forEach((s) => s.dispose())
       redoSnaps.current.forEach((s) => s.dispose())
+      preStroke.current?.dispose()
       backend.dispose?.()
     }
   }, [backend, image, stopTick])
@@ -185,9 +199,17 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     const { x, y } = toArtboard(vx, vy)
     startT.current = Date.now()
     seed.current = (Math.random() * 0xffffffff) >>> 0
-    eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current)
     samples.current = [{ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 }]
     ticks.current = []
+    if (tool === 'profibrush') {
+      preStroke.current?.dispose()
+      preStroke.current = backend.surface.makeImageSnapshot() // canvas state before this stroke
+      profiPts.current = [{ x, y, pressure: has ? pressure : 0.5 }]
+      profiActive.current = true
+      scheduleDisplay() // the rAF redraws the ribbon
+      return
+    }
+    eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current)
     eng.current.begin({ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 })
     liveStartRef.current?.({ toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current, first: samples.current[0] })
     if (tool === 'watercolor') { stopTick(); tickRaf.current = requestAnimationFrame(tickLoop) }
@@ -196,10 +218,16 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   }, [backend, scheduleDisplay, tickLoop, stopTick])
 
   const move = useCallback((vx: number, vy: number, pressure: number, has: boolean, tiltX: number, tiltY: number) => {
-    const e = eng.current
-    if (!e) return
     const { x, y } = toArtboard(vx, vy)
     const t = Date.now() - startT.current
+    if (profiActive.current) {
+      profiPts.current.push({ x, y, pressure: has ? pressure : 0.5 })
+      samples.current.push({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
+      scheduleDisplay() // rAF redraws the whole ribbon from all points so far
+      return
+    }
+    const e = eng.current
+    if (!e) return
     e.extend({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
     const sample: StrokeSample = { x, y, pressure, hasPressure: has, tiltX, tiltY, t }
     samples.current.push(sample)
@@ -209,9 +237,26 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   }, [scheduleDisplay])
 
   const end = useCallback(() => {
+    const tool = toolRef.current, settings = settingsRef.current
+    if (profiActive.current) {
+      // final render (the last move's rAF may not have run), then bake + checkpoint
+      if (preStroke.current) backend.restoreFrom(preStroke.current)
+      renderProfiStroke(backend, profiPts.current, settings, seed.current)
+      backend.flush()
+      profiActive.current = false
+      preStroke.current?.dispose(); preStroke.current = null
+      if (samples.current.length > 0) {
+        strokes.current.push({ toolId: tool, settings, assist: DEFAULT_ASSIST, seed: seed.current, samples: samples.current })
+        undoSnaps.current.push(backend.surface.makeImageSnapshot())
+        while (undoSnaps.current.length > MAX_UNDO + 1) undoSnaps.current.shift()!.dispose()
+        redoSnaps.current.forEach((s) => s.dispose()); redoSnaps.current = []; redoStrokes.current = []
+      }
+      scheduleDisplay()
+      notifyHistory()
+      return
+    }
     const e = eng.current
     if (!e) return
-    const tool = toolRef.current, settings = settingsRef.current
     stopTick()
     e.end()
     liveEndRef.current?.(tool === 'watercolor' ? ticks.current : undefined)
@@ -238,7 +283,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // Instant: restore the previous/next pixel checkpoint with a single blit. The vector model
   // (strokes/redoStrokes) moves in lockstep so save/submit stays correct. All no-ops mid-stroke.
   const doUndo = useCallback(() => {
-    if (eng.current || undoSnaps.current.length <= 1) return
+    if (eng.current || profiActive.current || undoSnaps.current.length <= 1) return
     redoSnaps.current.push(undoSnaps.current.pop()!)
     if (strokes.current.length) redoStrokes.current.push(strokes.current.pop()!)
     backend.restoreFrom(undoSnaps.current[undoSnaps.current.length - 1])
@@ -247,7 +292,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, scheduleDisplay])
   const doRedo = useCallback(() => {
-    if (eng.current || redoSnaps.current.length === 0) return
+    if (eng.current || profiActive.current || redoSnaps.current.length === 0) return
     const snap = redoSnaps.current.pop()!
     undoSnaps.current.push(snap)
     if (redoStrokes.current.length) strokes.current.push(redoStrokes.current.pop()!)
@@ -257,7 +302,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, scheduleDisplay])
   const doClear = useCallback(() => {
-    if (eng.current) return
+    if (eng.current || profiActive.current) return
     undoSnaps.current.forEach((s) => s.dispose())
     redoSnaps.current.forEach((s) => s.dispose())
     strokes.current = []
@@ -272,7 +317,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   // Merge-down: composite another layer's snapshot onto this surface, then checkpoint it for undo
   // (so the merge is itself undoable) and invalidate redo. No-op mid-stroke / after unmount.
   const doMergeImage = useCallback((img: SkImage) => {
-    if (eng.current || !alive.current) return
+    if (eng.current || profiActive.current || !alive.current) return
     backend.surface.getCanvas().drawImage(img, 0, 0)
     backend.flush()
     undoSnaps.current.push(backend.surface.makeImageSnapshot())

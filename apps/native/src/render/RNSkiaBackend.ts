@@ -219,6 +219,24 @@ export class RNSkiaBackend implements RendererBackend {
     this.skc.drawImage(img, 0, 0, p)
   }
 
+  fillPath(pts: number[], color: string, alpha: number, composite?: CompositeOp) {
+    if (pts.length < 6) return
+    const path = Skia.Path.Make()
+    path.moveTo(pts[0], pts[1])
+    for (let i = 2; i < pts.length; i += 2) path.lineTo(pts[i], pts[i + 1])
+    path.close()
+    const p = this.paint
+    this.cValid = false
+    p.setShader(null)
+    p.setStyle(PaintStyle.Fill)
+    p.setAntiAlias(true)
+    p.setColor(Skia.Color(color))
+    p.setAlphaf(Math.max(0, Math.min(1, alpha)))
+    p.setBlendMode(this.blend(composite))
+    this.skc.drawPath(path, p)
+    path.dispose()
+  }
+
   /** Texture grain as a single repeat-tiled SkImage, built once per texture and cached. */
   private getTextureTile(texture: BrushTexture): SkImage | null {
     const cached = this.textureTiles.get(texture)
