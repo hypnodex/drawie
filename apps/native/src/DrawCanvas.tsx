@@ -120,7 +120,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
       if (profiActive.current) {
         // restore the canvas to before this stroke, then redraw the whole ribbon from all points so far
         if (preStroke.current) backend.restoreFrom(preStroke.current)
-        renderProfiStroke(backend, profiPts.current, settingsRef.current, seed.current)
+        renderProfiStroke(backend, profiPts.current, settingsRef.current, seed.current, false) // ribbon only (live)
       }
       backend.flush()
       const snap = backend.surface.makeImageSnapshot()

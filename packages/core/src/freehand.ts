@@ -21,6 +21,8 @@ export interface FreehandOptions {
   streamline: number // 0..1 — input smoothing
   taper: number      // taper distance at each end (px) → rounded ends
   minPressure: number
+  angle: number      // flat-brush angle in RADIANS (for angle-based width)
+  angleWidth: number // 0..1 — how much the width varies with travel angle (0 = round)
 }
 
 /** A resampled centerline point with its local normal, half-width radius, and running length. */
@@ -72,6 +74,12 @@ export function buildSpine(input: FreehandInput[], opt: FreehandOptions): SpineP
     let tx = b.x - a.x, ty = b.y - a.y
     const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl
     let radius = radiusAt(p.pressure)
+    // angle-based width (flat brush): thin when travelling along `angle`, wide across it.
+    if (opt.angleWidth > 0) {
+      const c = Math.cos(Math.atan2(ty, tx) - opt.angle)
+      const wMin = 1 - opt.angleWidth * 0.85
+      radius *= Math.sqrt(1 - c * c + wMin * wMin * c * c) // sqrt(sin² + wMin²·cos²)
+    }
     if (opt.taper > 0) {
       const tp = Math.min(clamp01(len[i] / opt.taper), clamp01((total - len[i]) / opt.taper))
       radius *= tp * tp * (3 - 2 * tp)
@@ -100,7 +108,16 @@ export function getStrokeOutline(input: FreehandInput[], opt: FreehandOptions): 
 }
 
 export function freehandOptions(settings: ToolSettings): FreehandOptions {
-  return { size: settings.size, thinning: settings.pressureSim ? 0.5 : 0, streamline: 0.5, taper: settings.size * 0.5, minPressure: 0.06 }
+  const tex = settings.tex ?? DEFAULT_TEX
+  return {
+    size: settings.size,
+    thinning: settings.pressureSim ? 0.5 : 0,
+    streamline: tex.smoothing,
+    taper: settings.size * tex.taper,
+    minPressure: 0.06,
+    angle: tex.angle * Math.PI / 180,
+    angleWidth: tex.angleWidth,
+  }
 }
 
 // ── colour + noise helpers ───────────────────────────────────────────────────
@@ -126,7 +143,7 @@ function noise1(x: number): number {
  * semi-transparent lengthwise streaks on top (seeded → deterministic on web + native). Other tools
  * never call this.
  */
-export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[], settings: ToolSettings, seed = 1) {
+export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[], settings: ToolSettings, seed = 1, withStreaks = true) {
   if (!backend.fillPath || pts.length === 0) return
   const spine = buildSpine(pts, freehandOptions(settings))
   if (spine.length === 0) return
@@ -136,12 +153,13 @@ export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[]
   const outline = outlineFromSpine(spine)
   if (outline.length >= 6) backend.fillPath(outline, color, settings.opacity)
 
-  // STEP 2 — lengthwise streak overlay
-  if (!backend.strokeLine || spine.length < 2) return
+  // STEP 2 — lengthwise streak overlay. Commit-time only by default (drawing N streak polylines every
+  // frame on a growing stroke was the lag); the live preview shows just the ribbon.
   const tex = settings.tex ?? DEFAULT_TEX
+  const N = Math.max(0, Math.min(16, Math.round(tex.bristles)))
+  if (!withStreaks || !backend.strokeLine || spine.length < 2 || N === 0) return
   const cAmt = tex.colorRandom / 100
   const rng = mulberry32((seed >>> 0) || 1)
-  const N = Math.max(3, Math.min(9, Math.round(settings.size / 9)))
   for (let st = 0; st < N; st++) {
     const off = (rng() * 2 - 1) * 0.82      // across the width, inside the ribbon edge
     const hue = (rng() - 0.5) * 2

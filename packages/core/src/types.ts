@@ -24,11 +24,15 @@ export type BrushShape = 'circle' | 'square'
  * tangent + offset.
  */
 export interface TextureBrushSettings {
-  bristles: number    // RAKE model — number of continuous hairs spread across the brush width (12..30)
-  spacing: number     // polyline segment length as a fraction of diameter (small = smooth hairs)
-  aspect: number      // (legacy tip param — unused by the rake model)
-  rotate: number      // (legacy tip param — unused by the rake model)
-  auto: boolean       // (legacy tip param — unused by the rake model)
+  bristles: number    // STEP 2 — number of lengthwise streak lines over the ribbon
+  smoothing: number   // 0..1 — input streamline (higher = smoother ribbon)
+  taper: number       // 0..1.5 — end taper distance as a fraction of size (rounded/pointed ends)
+  angle: number       // brush angle in DEGREES (the flat-brush orientation for angle-based width)
+  angleWidth: number  // 0..1 — how much the width varies with travel angle (0 = round; 1 = strong flat-brush)
+  spacing: number     // (legacy — unused by the freehand model)
+  aspect: number      // (legacy — unused)
+  rotate: number      // (legacy — unused; superseded by `angle`)
+  auto: boolean       // (legacy — unused)
   dynamics: number    // 0..1 — velocity → size/opacity (faster ⇒ thinner/lighter)
   fadeIn: number      // taper size/opacity over the first N stamps (0 = off)
   fadeOut: number     // taper over the last N stamps (0 = off; needs the full path → replay/end)

@@ -1,10 +1,11 @@
 import type { AssistSettings, ToolSettingsMap, TextureBrushSettings } from './types'
 
-/** Default Texture-Brush (profibrush) params — RAKE model: N continuous hairs drawn as thin polylines
- *  offset across the brush width, blending into one smeared, streaky single-pull stroke (no repeated
- *  stamp shapes). colorRandom gives the per-hair painterly variation; jitter is a small per-hair offset. */
+/** Default Texture-Brush (profibrush) params — perfect-freehand ribbon (STEP 1) + lengthwise streak
+ *  overlay (STEP 2). `angle`/`angleWidth` give a flat-brush variable width (thin along the angle, wide
+ *  across it); `bristles` is the streak count; `colorRandom` the per-streak painterly variation. */
 export const DEFAULT_TEX: TextureBrushSettings = {
-  bristles: 18, spacing: 0.06, aspect: 2.6, rotate: 38, auto: false, dynamics: 0.35,
+  bristles: 6, smoothing: 0.55, taper: 0.5, angle: 45, angleWidth: 0,
+  spacing: 0.06, aspect: 2.6, rotate: 38, auto: false, dynamics: 0.35,
   fadeIn: 5, fadeOut: 8, inkFade: 0.1, colorRandom: 35, angleRandom: 0, scaleRandom: 0, jitter: 0.25,
 }
 

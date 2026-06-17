@@ -1,5 +1,6 @@
 import { View, Pressable } from 'react-native'
-import type { ToolId, ToolSettings as ToolSettingsType, BrushShape } from '@drawie/core'
+import type { ToolId, ToolSettings as ToolSettingsType, BrushShape, TextureBrushSettings } from '@drawie/core'
+import { DEFAULT_TEX } from '@drawie/core'
 import { Text } from '../ui/text'
 import { cn } from '../../lib/cn'
 import { Slider } from '../../ui/Slider'
@@ -55,6 +56,8 @@ export function ToolSettingsPanel({
 }) {
   const meta = TOOL_META[tool]
   const waterOnly = tool === 'waterdrop' && settings.color === 'transparent'
+  const tx = settings.tex ?? DEFAULT_TEX
+  const patchTex = (p: Partial<TextureBrushSettings>) => onChange({ tex: { ...tx, ...p } })
 
   return (
     <View className="gap-1">
@@ -85,6 +88,17 @@ export function ToolSettingsPanel({
 
       {tool !== 'bucket' && (
         <Slider label="Size" value={settings.size} min={1} max={240} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
+      )}
+
+      {tool === 'profibrush' && (
+        <>
+          <Slider label="Smooth" value={tx.smoothing} min={0} max={0.95} step={0.01} onChange={(v) => patchTex({ smoothing: v })} format={pct} />
+          <Slider label="Taper" value={tx.taper} min={0} max={1.5} step={0.05} onChange={(v) => patchTex({ taper: v })} format={(v) => `${v.toFixed(2)}`} />
+          <Slider label="Angle" value={tx.angle} min={0} max={180} step={1} onChange={(v) => patchTex({ angle: v })} format={(v) => `${Math.round(v)}°`} />
+          <Slider label="Width÷Angle" value={tx.angleWidth} min={0} max={1} step={0.01} onChange={(v) => patchTex({ angleWidth: v })} format={pct} />
+          <Slider label="Streaks" value={tx.bristles} min={0} max={16} step={1} onChange={(v) => patchTex({ bristles: v })} format={(v) => `${Math.round(v)}`} />
+          <Slider label="Color Rnd" value={tx.colorRandom} min={0} max={100} step={1} onChange={(v) => patchTex({ colorRandom: v })} format={(v) => `${Math.round(v)}`} />
+        </>
       )}
 
       {meta.usesHardness && (
