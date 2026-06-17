@@ -60,7 +60,7 @@ function toModerationDataUrl(composite: SkImage): string {
  */
 // Bump on every native edit batch so we can confirm on-device that the iPad loaded the fresh bundle
 // (this worktree's Metro doesn't auto-watch, so stale bundles are the usual false alarm).
-const BUILD = 'b28'
+const BUILD = 'b29'
 export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: string; tile?: Tile; canvas?: Canvas; onExit?: () => void }) {
   // Founder constraints — restrict the tool bar + colour palette to what this canvas allows.
   const allowedTools = canvas?.allowedTools?.length ? TOOL_IDS.filter((t) => canvas.allowedTools.includes(t)) : TOOL_IDS
@@ -364,21 +364,29 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
               )
             })}
 
-            {/* Artboard — inset by `sliver`; white paper, stacked layer canvases. Green ring + drop
-                shadow (mirrors the web) so the active drawing area reads as the focus. */}
+            {/* Tile paper — just the VISUAL (white paper · green ring · drop shadow) at the tile region.
+                Pointer-transparent; the layers below the chrome handle input. */}
             <View
+              pointerEvents="none"
               className="border-2 border-primary"
               style={{ position: 'absolute', left: sliver, top: sliver, width: inner, height: inner, backgroundColor: bgColor, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 8 }}
-            >
-              {layers.map((L, i) => (
+            />
+            {/* Layers — each covers the WHOLE STAGE so the active layer also catches touches on the
+                surrounding slivers (a stroke can start outside the tile and draw inward). The artwork still
+                renders only at the tile sub-region via the DrawCanvas `artboard` prop; out-of-tile stamps
+                clip to the surface. Non-active layers are display-only. */}
+            {layers.map((L, i) => {
+              const isActive = L.id === activeId
+              return (
                 <View
                   key={L.id}
-                  style={[StyleSheet.absoluteFill, { zIndex: i, opacity: L.visible ? L.opacity : 0 }]}
-                  pointerEvents={L.id === activeId ? 'auto' : 'none'}
+                  style={[StyleSheet.absoluteFill, { zIndex: 10 + i, opacity: L.visible ? L.opacity : 0 }]}
+                  pointerEvents={isActive ? 'auto' : 'none'}
                 >
                   <DrawCanvas
                     ref={(h) => { if (h) layerRefs.current.set(L.id, h); else layerRefs.current.delete(L.id) }}
-                    active={L.id === activeId}
+                    active={isActive}
+                    artboard={{ offset: sliver, size: inner }}
                     tool={tool}
                     settings={s}
                     picking={pickMode && L.id === activeId}
@@ -390,8 +398,8 @@ export function EditorScreen({ canvasId, tile, canvas, onExit }: { canvasId?: st
                     onLiveEnd={onLiveEnd}
                   />
                 </View>
-              ))}
-            </View>
+              )
+            })}
             </Animated.View>
           </GestureDetector>
         )}

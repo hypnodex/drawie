@@ -60,11 +60,16 @@ type DrawCanvasProps = {
   /** When true the draw gesture is disabled (e.g. the settings popover is open over the canvas), so a
    *  stylus touch can't draw on or through the panel. */
   blocked?: boolean
+  /** When set, the gesture View is LARGER than the tile (the active layer extends over the surrounding
+   *  slivers) so a stroke can START outside the tile and draw inward — the artwork still renders at the
+   *  tile sub-region `{offset,size}` and out-of-tile stamps clip to the surface. Undefined = View == tile. */
+  artboard?: { offset: number; size: number }
 }
 
 export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function DrawCanvas(
-  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd, picking = false, onPick, blocked = false }, ref,
+  { tool, settings, onHistory, active = true, onLiveStart, onLiveAppend, onLiveEnd, picking = false, onPick, blocked = false, artboard }, ref,
 ) {
+  const artboardRef = useRef(artboard); artboardRef.current = artboard
   // Read the latest live callbacks without re-subscribing the gesture handlers.
   const liveStartRef = useRef(onLiveStart); liveStartRef.current = onLiveStart
   const liveAppendRef = useRef(onLiveAppend); liveAppendRef.current = onLiveAppend
@@ -151,6 +156,12 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
   }, [])
 
   const toArtboard = (vx: number, vy: number) => {
+    const ab = artboardRef.current
+    if (ab) {
+      // The View is larger than the tile; the tile sits at (offset,offset) size `size`.
+      const s = ab.size / ARTBOARD
+      return { x: (vx - ab.offset) / s, y: (vy - ab.offset) / s }
+    }
     const { w, h } = layout.current
     const s = Math.min(w, h) / ARTBOARD
     const ox = (w - ARTBOARD * s) / 2
@@ -386,7 +397,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     <View style={styles.fill} onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
         <Canvas style={StyleSheet.absoluteFill}>
-          {dims.w > 0 && <Image image={image} x={0} y={0} width={dims.w} height={dims.h} fit="contain" />}
+          {dims.w > 0 && <Image image={image} x={artboard ? artboard.offset : 0} y={artboard ? artboard.offset : 0} width={artboard ? artboard.size : dims.w} height={artboard ? artboard.size : dims.h} fit="contain" />}
         </Canvas>
       </GestureDetector>
     </View>
