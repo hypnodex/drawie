@@ -150,11 +150,4 @@ export interface RendererBackend {
    * self-overlapping outlines don't leave holes. Optional — used by the perfect-freehand stroke ribbon.
    */
   fillPath?(pts: number[], color: string, alpha: number, composite?: CompositeOp): void
-
-  /**
-   * Fill a triangle-STRIP ribbon (`verts` = flat [L0x,L0y,R0x,R0y,L1x,L1y,...]) in `color`, with a
-   * per-vertex `alphas` (0..1) — a vertex mesh, so opacity can vary smoothly along the length with no
-   * seams (used for the profibrush Fade In/Out). Optional; callers fall back to fillPath.
-   */
-  fillStrip?(verts: number[], color: string, alphas: number[]): void
 }

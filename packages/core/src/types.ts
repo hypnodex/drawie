@@ -34,8 +34,8 @@ export interface TextureBrushSettings {
   rotate: number      // (legacy — unused; superseded by `angle`)
   auto: boolean       // (legacy — unused)
   dynamics: number    // 0..1 — velocity → size/opacity (faster ⇒ thinner/lighter)
-  fadeIn: number      // OPACITY fade-in distance at the START of the path, as a fraction of size
-  fadeOut: number     // OPACITY fade-out distance at the END of the path, as a fraction of size
+  fadeIn: number      // taper size/opacity over the first N stamps (0 = off)
+  fadeOut: number     // taper over the last N stamps (0 = off; needs the full path → replay/end)
   inkFade: number     // 0..1 — opacity fades across the whole stroke (paint running out)
   colorRandom: number // 0..100 — per-stamp hue/value jitter (subtle painterly variation)
   angleRandom: number // random per-stamp rotation in DEGREES (0 = clean)

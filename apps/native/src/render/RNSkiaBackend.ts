@@ -4,8 +4,8 @@ import type {
 import { getTipAlpha } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
-  FilterMode, MipmapMode, VertexMode,
-  type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage, type SkData, type SkPoint,
+  FilterMode, MipmapMode,
+  type SkSurface, type SkCanvas, type SkPaint, type SkColor, type SkImage, type SkData,
 } from '@shopify/react-native-skia'
 import { getTexturePixels } from './textures'
 
@@ -235,27 +235,6 @@ export class RNSkiaBackend implements RendererBackend {
     p.setBlendMode(this.blend(composite))
     this.skc.drawPath(path, p)
     path.dispose()
-  }
-
-  fillStrip(verts: number[], color: string, alphas: number[]) {
-    const N = Math.min(verts.length >> 1, alphas.length)
-    if (N < 3) return
-    const m = /^#?([0-9a-f]{6})$/i.exec(color.trim())
-    const rgb = m ? m[1] : 'c4366b'
-    const r = parseInt(rgb.slice(0, 2), 16), g = parseInt(rgb.slice(2, 4), 16), b = parseInt(rgb.slice(4, 6), 16)
-    const points: SkPoint[] = []
-    const colors: SkColor[] = []
-    for (let i = 0; i < N; i++) {
-      points.push(Skia.Point(verts[i * 2], verts[i * 2 + 1]))
-      colors.push(Skia.Color(`rgba(${r},${g},${b},${Math.max(0, Math.min(1, alphas[i])).toFixed(3)})`))
-    }
-    const v = Skia.MakeVertices(VertexMode.TriangleStrip, points, null, colors)
-    const p = Skia.Paint()
-    p.setAntiAlias(true)
-    p.setColor(Skia.Color('#ffffff')) // Modulate with white → the per-vertex colours (with alpha) are used as-is
-    this.skc.drawVertices(v, BlendMode.Modulate, p)
-    this.cValid = false
-    ;(v as unknown as { dispose?: () => void }).dispose?.()
   }
 
   /** Texture grain as a single repeat-tiled SkImage, built once per texture and cached. */
