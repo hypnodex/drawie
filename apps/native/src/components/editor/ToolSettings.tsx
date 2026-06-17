@@ -93,7 +93,8 @@ export function ToolSettingsPanel({
       {tool === 'profibrush' && (
         <>
           <Slider label="Smooth" value={tx.smoothing} min={0} max={0.95} step={0.01} onChange={(v) => patchTex({ smoothing: v })} format={pct} />
-          <Slider label="Taper" value={tx.taper} min={0} max={1.5} step={0.05} onChange={(v) => patchTex({ taper: v })} format={(v) => `${v.toFixed(2)}`} />
+          <Slider label="Fade In" value={tx.fadeIn} min={0} max={1.5} step={0.05} onChange={(v) => patchTex({ fadeIn: v })} format={(v) => `${v.toFixed(2)}`} />
+          <Slider label="Fade Out" value={tx.fadeOut} min={0} max={1.5} step={0.05} onChange={(v) => patchTex({ fadeOut: v })} format={(v) => `${v.toFixed(2)}`} />
           <Slider label="Angle" value={tx.angle} min={0} max={180} step={1} onChange={(v) => patchTex({ angle: v })} format={(v) => `${Math.round(v)}°`} />
           <Slider label="Width÷Angle" value={tx.angleWidth} min={0} max={1} step={0.01} onChange={(v) => patchTex({ angleWidth: v })} format={pct} />
           <Slider label="Streaks" value={tx.bristles} min={0} max={16} step={1} onChange={(v) => patchTex({ bristles: v })} format={(v) => `${Math.round(v)}`} />

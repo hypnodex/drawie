@@ -19,7 +19,8 @@ export interface FreehandOptions {
   size: number       // full stroke width at full pressure
   thinning: number   // 0..1 — how much low pressure thins the stroke
   streamline: number // 0..1 — input smoothing
-  taper: number      // taper distance at each end (px) → rounded ends
+  taperStart: number // fade-in taper distance at the START of the path (px); 0 = blunt start
+  taperEnd: number   // fade-out taper distance at the END of the path (px); 0 = blunt end
   minPressure: number
   angle: number      // flat-brush angle in RADIANS (for angle-based width)
   angleWidth: number // 0..1 — how much the width varies with travel angle (0 = round)
@@ -80,8 +81,10 @@ export function buildSpine(input: FreehandInput[], opt: FreehandOptions): SpineP
       const wMin = 1 - opt.angleWidth * 0.85
       radius *= Math.sqrt(1 - c * c + wMin * wMin * c * c) // sqrt(sin² + wMin²·cos²)
     }
-    if (opt.taper > 0) {
-      const tp = Math.min(clamp01(len[i] / opt.taper), clamp01((total - len[i]) / opt.taper))
+    if (opt.taperStart > 0 || opt.taperEnd > 0) {
+      const ts = opt.taperStart > 0 ? clamp01(len[i] / opt.taperStart) : 1
+      const te = opt.taperEnd > 0 ? clamp01((total - len[i]) / opt.taperEnd) : 1
+      const tp = Math.min(ts, te)
       radius *= tp * tp * (3 - 2 * tp)
     }
     spine.push({ x: p.x, y: p.y, nx: -ty, ny: tx, radius: Math.max(0.2, radius), len: len[i] })
@@ -113,7 +116,8 @@ export function freehandOptions(settings: ToolSettings): FreehandOptions {
     size: settings.size,
     thinning: settings.pressureSim ? 0.5 : 0,
     streamline: tex.smoothing,
-    taper: settings.size * tex.taper,
+    taperStart: settings.size * tex.fadeIn,
+    taperEnd: settings.size * tex.fadeOut,
     minPressure: 0.06,
     angle: tex.angle * Math.PI / 180,
     angleWidth: tex.angleWidth,
