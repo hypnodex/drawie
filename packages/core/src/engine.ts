@@ -361,33 +361,36 @@ export class StrokeEngine {
     const perpX = -dy, perpY = dx
     const baseAlpha = this.settings.opacity * (this.settings.pressureSim ? (0.7 + 0.3 * p.pressure) : 1)
     const a = this.applyDilution(baseAlpha)
-    // Opaque paint body (albedo only — the relief/bristles come from the height pass).
-    this.fillShape(p.x, p.y, r, color, Math.min(1, a))
-
-    if (!this.heightBackend) return
     const flow = this.settings.strength // 'flow' = how much height each dab lays
     const pScale = this.settings.pressureSim ? (0.5 + 0.5 * p.pressure) : 1
-    const stops: GradientStop[] = [
-      { offset: 0,    color: 'rgba(255,255,255,1)' },
-      { offset: 0.6,  color: 'rgba(255,255,255,1)' },
-      { offset: 1,    color: 'rgba(255,255,255,0)' },
-    ]
-    const br = Math.max(0.6, r * 0.1)   // fine bristle thickness
-    const reach = br * 1.3
-    for (const b of this.bristles) {
-      // Continuous noise along the travelled distance → each bristle fades in/out, leaving grooves.
-      const flick = this.smoothNoise(this.bristleDist * 0.05 + b.seed, b.seed)
-      if (flick < 0.16) continue // bristle lifted → groove (no thickness laid here)
-      const off = b.off * r * 0.94
-      const sx = p.x + perpX * off
-      const sy = p.y + perpY * off
-      const hw = (0.35 + 0.65 * (b.w / 1.7)) * (0.6 + 0.4 * flick) // per-bristle height weight
-      const hAlpha = Math.min(0.96, (0.2 + 0.7 * flow) * hw * pScale)
+
+    // Solid core keeps the body opaque; bristles (below) break up the EDGE so it reads ragged, not a
+    // smooth disc. Inset so the bristles, not the core, define the perimeter.
+    this.fillShape(p.x, p.y, r * 0.7, color, Math.min(1, a))
+    // One soft height bump for the raised body (a single cheap gradient, not one per bristle).
+    if (this.heightBackend) {
+      const reach = r * 0.86
       this.heightBackend.fillRadialGradient(
-        sx, sy, 0, reach, stops,
-        { x: sx - reach - 1, y: sy - reach - 1, w: reach * 2 + 2, h: reach * 2 + 2 },
-        undefined, hAlpha,
+        p.x, p.y, 0, reach,
+        [{ offset: 0, color: 'rgba(255,255,255,1)' }, { offset: 0.55, color: 'rgba(255,255,255,1)' }, { offset: 1, color: 'rgba(255,255,255,0)' }],
+        { x: p.x - reach - 1, y: p.y - reach - 1, w: reach * 2 + 2, h: reach * 2 + 2 },
+        undefined, Math.min(0.82, (0.2 + 0.5 * flow) * pScale),
       )
+    }
+
+    // Bristles drive BOTH the ragged colour edge AND the height ridges. fillCircle (no per-dab shader
+    // allocation) so a dense bristle set stays cheap — this is the lag fix vs the old per-bristle gradient.
+    const cr = Math.max(0.6, r * 0.12)
+    const hr = Math.max(0.6, r * 0.11)
+    for (const b of this.bristles) {
+      const flick = this.smoothNoise(this.bristleDist * 0.05 + b.seed, b.seed) // 0..1 along the drag
+      if (flick < 0.22) continue // bristle lifted → gap → ragged edge / dry break
+      const cox = p.x + perpX * (b.off * r * 1.05), coy = p.y + perpY * (b.off * r * 1.05)
+      this.backend.fillCircle(cox, coy, cr, color, Math.min(1, a * (0.45 + 0.55 * flick))) // ragged colour
+      if (this.heightBackend) {
+        const hw = (0.4 + 0.6 * (b.w / 1.7)) * (0.55 + 0.45 * flick)
+        this.heightBackend.fillCircle(p.x + perpX * (b.off * r * 0.98), p.y + perpY * (b.off * r * 0.98), hr, '#ffffff', Math.min(0.92, (0.25 + 0.6 * flow) * hw * pScale))
+      }
     }
   }
 

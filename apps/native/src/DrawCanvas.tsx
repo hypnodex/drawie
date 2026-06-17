@@ -223,7 +223,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
       cur.dispose()
       dirty.current = { x0: 0, y0: 0, x1: ARTBOARD, y1: ARTBOARD }
     }
-    if (litBackend.current) markDirty(x, y, settings.size)
+    if (litBackend.current) markDirty(x, y, settings.size * 0.62) // footprint ≈ r·1.05 + bristle disc
     eng.current = new StrokeEngine(backend, tool, settings, DEFAULT_ASSIST, seed.current, heightBackend.current ?? undefined)
     samples.current = [{ x, y, pressure, hasPressure: has, tiltX, tiltY, t: 0 }]
     ticks.current = []
@@ -240,7 +240,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, DrawCanvasProps>(function
     const { x, y } = toArtboard(vx, vy)
     const t = Date.now() - startT.current
     e.extend({ x, y, pressure, hasPressure: has, tiltX, tiltY, t })
-    if (litBackend.current) markDirty(x, y, settingsRef.current.size)
+    if (litBackend.current) markDirty(x, y, settingsRef.current.size * 0.62)
     const sample: StrokeSample = { x, y, pressure, hasPressure: has, tiltX, tiltY, t }
     samples.current.push(sample)
     liveAppendRef.current?.([sample])
