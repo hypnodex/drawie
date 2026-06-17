@@ -1,6 +1,7 @@
 import type {
   RendererBackend, GradientStop, Box, CompositeOp, RGBA, PixelRegion, BrushTexture,
 } from '@drawie/core'
+import { getTipAlpha } from '@drawie/core'
 import {
   Skia, BlendMode, PaintStyle, StrokeCap, StrokeJoin, TileMode, AlphaType, ColorType,
   FilterMode, MipmapMode,
@@ -254,6 +255,44 @@ export class RNSkiaBackend implements RendererBackend {
     shader.dispose() // cheap wrapper (no pixel data); the tile image stays cached
   }
 
+  // Texture-brush tip image (the shared bristle alpha), built once + cached. undefined = not yet built.
+  private tipImg: SkImage | null | undefined
+  private tipData: SkData | null = null
+  private tipImage(): SkImage | null {
+    if (this.tipImg === undefined) {
+      const t = getTipAlpha()
+      this.tipData = Skia.Data.fromBytes(new Uint8Array(t.data.buffer, t.data.byteOffset, t.data.byteLength))
+      this.tipImg = Skia.Image.MakeImage(
+        { width: t.width, height: t.height, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul },
+        this.tipData, t.width * 4,
+      ) ?? null
+    }
+    return this.tipImg
+  }
+
+  drawTip(x: number, y: number, halfLen: number, halfWid: number, rotation: number, color: string, alpha: number) {
+    const img = this.tipImage()
+    if (!img) return
+    const p = Skia.Paint()
+    p.setAntiAlias(true)
+    // White tip alpha → brush colour via SrcIn (RGB from the colour, coverage from the tip), then the
+    // whole paint scaled by the stamp alpha.
+    p.setColorFilter(Skia.ColorFilter.MakeBlend(Skia.Color(color), BlendMode.SrcIn))
+    p.setAlphaf(Math.max(0, Math.min(1, alpha)))
+    const c = this.skc
+    c.save()
+    c.translate(x, y)
+    c.rotate((rotation * 180) / Math.PI, 0, 0)
+    c.drawImageRect(
+      img,
+      Skia.XYWHRect(0, 0, img.width(), img.height()),
+      Skia.XYWHRect(-halfLen, -halfWid, halfLen * 2, halfWid * 2),
+      p,
+    )
+    c.restore()
+    this.cValid = false
+  }
+
   flush() {
     // VERIFY: on-screen presentation depends on how the surface is displayed
     // (makeImageSnapshot → <Image>, or a useCanvasRef draw loop). See DrawCanvas.tsx.
@@ -263,6 +302,7 @@ export class RNSkiaBackend implements RendererBackend {
   dispose() {
     for (const t of this.textureTiles.values()) { t?.img.dispose(); t?.data.dispose() }
     this.textureTiles.clear()
+    this.tipImg?.dispose(); this.tipData?.dispose()
     if (this.owned) this.surface.dispose?.()
   }
 }

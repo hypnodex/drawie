@@ -29,6 +29,12 @@ export const BrushIcon = (p: IconProps) => (
     <Path d="M9.7 11.1c-1.6-.3-3.2.2-4.4 1.4-1.5 1.5-1.6 4.6-2.3 6.4-.2.6.4 1.2 1 1 1.8-.7 4.9-.8 6.4-2.3 1.2-1.2 1.7-2.8 1.4-4.4l-2.1-2.1z" />
   </Solid>
 )
+export const ProfiBrushIcon = (p: IconProps) => (
+  <Solid {...p}>
+    <Path d="M21 3.2a1.7 1.7 0 0 0-2.4 0l-8.1 8.1 2.4 2.4 8.1-8.1a1.7 1.7 0 0 0 0-2.4z" />
+    <Path d="M9.7 12.1l2.2 2.2-3.4 3.4-3.9 1.6c-.5.2-1-.3-.8-.8l1.6-3.9 4.3-2.5z" />
+  </Solid>
+)
 export const DryBrushIcon = (p: IconProps) => (
   <Solid {...p}>
     <Path d="M18.4 2.9a2 2 0 0 1 2.7 2.7l-6.2 6.2-2.7-2.7 6.2-6.2z" />
@@ -149,6 +155,7 @@ export const PlusSmallIcon = (p: IconProps) => (<Stroke {...p}><Circle cx={12} c
 /** Tool → glyph, in the web's TOOL_LIST order. */
 export const TOOL_ICON: Record<ToolId, (p: IconProps) => React.ReactElement> = {
   brush: BrushIcon,
+  profibrush: ProfiBrushIcon,
   drybrush: DryBrushIcon,
   inkbrush: InkBrushIcon,
   pencil: PencilIcon,
