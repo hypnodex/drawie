@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { BRUSH_TEXTURES, BrushShape, BrushTexture, ToolId, ToolSettings as ToolSettingsType } from '@drawie/core'
+import { BRUSH_TEXTURES, BrushShape, BrushTexture, ToolId, ToolSettings as ToolSettingsType, DEFAULT_TEX, type TextureBrushSettings } from '@drawie/core'
 import { ColorPicker } from './ColorPicker'
 import { PressureIcon, WetIcon, BuildUpIcon } from '../icons'
 import { getTextureCanvas } from '@drawie/renderer'
@@ -46,6 +46,7 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
   impasto:    { name: 'Impasto',    subtitle: 'Thick raised paint, with depth', usesColor: true, usesPressure: true, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: true,  usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
   oil:        { name: 'Oil Paint',  subtitle: 'Thick bristled paint with sheen', usesColor: true, usesPressure: true, usesWet: false, usesSoftness: false, usesStrength: true,  usesHardness: false, usesShape: false, usesBlending: false, usesDilution: true,  usesBuildUp: false, usesTexture: false },
   bucket:     { name: 'BG color',   subtitle: 'Set the background (behind your art)', usesColor: true, usesPressure: false, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
+  profibrush: { name: 'Profi Brush', subtitle: 'Painterly variable-width brush', usesColor: true, usesPressure: true, usesWet: false, usesSoftness: false, usesStrength: false, usesHardness: false, usesShape: false, usesBlending: false, usesDilution: false, usesBuildUp: false, usesTexture: false },
 }
 
 export function ToolSettingsPanel({
@@ -53,6 +54,8 @@ export function ToolSettingsPanel({
   paletteOverride,
 }: Props) {
   const meta = TOOL_META[tool]
+  const tx = settings.tex ?? DEFAULT_TEX
+  const patchTex = (p: Partial<TextureBrushSettings>) => onChange({ tex: { ...tx, ...p } })
 
   return (
     <div className="flex flex-col gap-4">
@@ -119,6 +122,32 @@ export function ToolSettingsPanel({
                   onChange={(v) => onChange({ opacity: v })}
                   display={(v) => `${Math.round(v * 100)}%`} />
         </Section>
+      )}
+
+      {tool === 'profibrush' && (
+        <>
+          <Section title="Softness">
+            <Slider min={0} max={1} step={0.01} value={settings.softness} onChange={(v) => onChange({ softness: v })} display={(v) => `${Math.round(v * 100)}%`} />
+          </Section>
+          <Section title="Smooth">
+            <Slider min={0} max={0.95} step={0.01} value={tx.smoothing} onChange={(v) => patchTex({ smoothing: v })} display={(v) => `${Math.round(v * 100)}%`} />
+          </Section>
+          <Section title="Taper">
+            <Slider min={0} max={1.5} step={0.05} value={tx.taper} onChange={(v) => patchTex({ taper: v })} display={(v) => v.toFixed(2)} />
+          </Section>
+          <Section title="Angle">
+            <Slider min={0} max={180} step={1} value={tx.angle} onChange={(v) => patchTex({ angle: v })} display={(v) => `${Math.round(v)}°`} />
+          </Section>
+          <Section title="Width / Angle">
+            <Slider min={0} max={1} step={0.01} value={tx.angleWidth} onChange={(v) => patchTex({ angleWidth: v })} display={(v) => `${Math.round(v * 100)}%`} />
+          </Section>
+          <Section title="Streaks">
+            <Slider min={0} max={16} step={1} value={tx.bristles} onChange={(v) => patchTex({ bristles: v })} display={(v) => `${Math.round(v)}`} />
+          </Section>
+          <Section title="Color Rnd">
+            <Slider min={0} max={100} step={1} value={tx.colorRandom} onChange={(v) => patchTex({ colorRandom: v })} display={(v) => `${Math.round(v)}`} />
+          </Section>
+        </>
       )}
 
       {meta.usesHardness && (

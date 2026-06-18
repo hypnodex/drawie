@@ -11,6 +11,7 @@ import {
   StrokeEngine, type InputPoint, analyzeShape, generateShapePath, smoothFreeform, ShapeKind,
   replayStroke, type ModelStroke, type StrokeSample, type DrawDocument, type RendererBackend,
   AssistSettings, Layer, ToolId, ToolSettings,
+  renderProfiStroke, type FreehandInput,
 } from '@drawie/core'
 import { Canvas2DBackend, SkiaBackend } from '@drawie/renderer'
 import type { CanvasKit } from 'canvaskit-wasm'
@@ -164,6 +165,14 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const live = useLiveNeighbors({ canvasId, tileRow, tileCol, gridRows, gridCols, userId })
 
   const engineRef = useRef<StrokeEngine | null>(null)
+  // profibrush (perfect-freehand) — NOT engine-stamped: accumulate points, re-render the whole ribbon
+  // over the committed strokes each frame, commit at stroke end (mirrors native DrawCanvas).
+  const profiActiveRef = useRef(false)
+  const profiPtsRef = useRef<FreehandInput[]>([])
+  // Pre-stroke pixel snapshot of the active layer (Canvas2D path) so each profibrush
+  // frame restores in O(1) instead of replaying every committed stroke. ?skia=1 falls
+  // back to rerenderLayer (a Skia surface can't blit an HTMLCanvas snapshot).
+  const profiSnapshot = useRef<HTMLCanvasElement | null>(null)
   const activePointerId = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
   /** Timestamp of the last pointermove — used for hold-to-snap detection. */
@@ -338,6 +347,25 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   }, [getActiveCtx, runShapeAssist])
 
   const tickLoop = useCallback(() => {
+    if (profiActiveRef.current) {
+      // Re-render the whole profibrush ribbon each frame over a restored pre-stroke state (no buildup,
+      // speed-independent). Streaks are added at commit, not live.
+      const layerId = activeLayerIdRef.current
+      const snap = profiSnapshot.current
+      const dst = layerCanvasRefs.current.get(layerId)
+      if (snap && dst && !usingSkia()) {
+        // O(1) restore: clear + blit the cached pre-stroke pixels.
+        const cx = dst.getContext('2d', { willReadFrequently: true })!
+        cx.clearRect(0, 0, dst.width, dst.height)
+        cx.drawImage(snap, 0, 0)
+      } else {
+        rerenderLayer(layerId)   // ?skia=1: replay from the model (no HTMLCanvas snapshot)
+      }
+      const backend = backendFor(layerId)
+      if (backend) { renderProfiStroke(backend, profiPtsRef.current, settingsRef.current, currentSeed.current, false); backend.flush?.() }
+      rafRef.current = requestAnimationFrame(tickLoop)
+      return
+    }
     const eng = engineRef.current
     if (!eng) { rafRef.current = null; return }
     const a = assistRef.current
@@ -352,7 +380,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     currentTicks.current.push(now - strokeStartT.current)
     strokeBackend.current?.flush?.()
     rafRef.current = requestAnimationFrame(tickLoop)
-  }, [triggerHoldSnap])
+  }, [triggerHoldSnap, rerenderLayer, backendFor])
 
   // Compute fit-zoom from viewport size; only snap zoom to fit on first measure.
   useEffect(() => {
@@ -482,15 +510,36 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     if (!backend) { activePointerId.current = null; return }
     strokeBackend.current = backend
     strokeUsedSkia.current = usingSkia()
-    if (!strokeUsedSkia.current) {
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-      ctx.clip()
+    if (tool === 'profibrush') {
+      // perfect-freehand: accumulate points + re-render the ribbon each frame (tickLoop). No engine,
+      // no Canvas2D clip (the ribbon clips to the canvas bounds like every other tool).
+      profiActiveRef.current = true
+      profiPtsRef.current = [{ x, y, pressure: ip.hasPressure ? ip.pressure : 0.5 }]
+      if (!strokeUsedSkia.current) {
+        // Cache the committed pixels so each frame restores via one drawImage (not a full model replay).
+        // willReadFrequently keeps the snapshot CPU-backed so its drawImage back onto the layer (restore /
+        // commit) can't flip the layer to GPU (see createSurface for why that matters).
+        const src = layerCanvasRefs.current.get(activeLayerId)
+        if (src) {
+          const snap = profiSnapshot.current ?? document.createElement('canvas')
+          if (snap.width !== src.width || snap.height !== src.height) { snap.width = src.width; snap.height = src.height }
+          const sctx = snap.getContext('2d', { willReadFrequently: true })!
+          sctx.clearRect(0, 0, snap.width, snap.height)
+          sctx.drawImage(src, 0, 0)
+          profiSnapshot.current = snap
+        }
+      }
+    } else {
+      if (!strokeUsedSkia.current) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        ctx.clip()
+      }
+      engineRef.current = new StrokeEngine(backend, tool, settings, assist, currentSeed.current)
+      engineRef.current.begin(ip)
+      backend.flush?.()
     }
-    engineRef.current = new StrokeEngine(backend, tool, settings, assist, currentSeed.current)
-    engineRef.current.begin(ip)
-    backend.flush?.()
     // Broadcast the stroke start to neighbors (no-op in the sandbox where broadcaster is null).
     const bc = live.broadcaster
     if (bc) {
@@ -504,8 +553,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerId.current !== e.pointerId) return
     if (snappedDuringStroke.current) return    // ignore further input after hold-snap
-    const eng = engineRef.current
-    if (!eng) return
+    if (!profiActiveRef.current && !engineRef.current) return
     e.preventDefault()
     const events = (typeof e.nativeEvent.getCoalescedEvents === 'function')
       ? e.nativeEvent.getCoalescedEvents()
@@ -516,13 +564,16 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     for (const ev of events) {
       const { x, y } = toInternal(ev.clientX, ev.clientY)
       const hasPressure = (ev.pointerType !== 'mouse') && ev.pressure > 0
-      const ip: InputPoint = { x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now }
-      eng.extend(ip)
+      if (profiActiveRef.current) {
+        profiPtsRef.current.push({ x, y, pressure: hasPressure ? ev.pressure : 0.5 })
+      } else {
+        engineRef.current!.extend({ x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now })
+      }
       const sample: StrokeSample = { x, y, pressure: ev.pressure, hasPressure, tiltX: ev.tiltX, tiltY: ev.tiltY, t: now - strokeStartT.current }
       currentSamples.current.push(sample)
       added.push(sample)
     }
-    strokeBackend.current?.flush?.()
+    if (!profiActiveRef.current) strokeBackend.current?.flush?.() // profibrush flushes in tickLoop
     // Forward the new samples to neighbors (coalesced inside the broadcaster).
     if (currentStrokeId.current) live.broadcaster?.append(added)
   }, [toInternal])
@@ -539,15 +590,33 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     // If a hold-snap already fired mid-stroke, we already unwound the clip and
     // committed the snapped shape; just clean up here.
     if (!snappedDuringStroke.current) {
-      if (ctx && !strokeUsedSkia.current) ctx.restore()   // unwind the Canvas2D clip from begin
-      eng?.end()
-      strokeBackend.current?.flush?.()
-      // Shape assist on release ONLY when hold-to-snap mode is off; otherwise a
-      // normal release leaves the rough stroke. Falls through to a freehand commit.
-      const snapped = (eng && assistRef.current.shapeAssist && !assistRef.current.holdToSnap)
-        ? runShapeAssist(layerId, eng.getRawPoints())
-        : false
-      if (!snapped) commitFreehandStroke(layerId)
+      if (profiActiveRef.current) {
+        commitFreehandStroke(layerId)   // commit the profibrush stroke (its samples)
+        // Final paint: restore the pre-stroke pixels (= every OTHER committed stroke) and render THIS
+        // stroke once WITH streaks. Avoids rerenderLayer replaying every stroke on the layer (the lag).
+        const snap = profiSnapshot.current
+        const dst = layerCanvasRefs.current.get(layerId)
+        const backend = backendFor(layerId)
+        if (snap && dst && backend && !usingSkia()) {
+          const cx = dst.getContext('2d', { willReadFrequently: true })!
+          cx.clearRect(0, 0, dst.width, dst.height)
+          cx.drawImage(snap, 0, 0)
+          renderProfiStroke(backend, profiPtsRef.current, settingsRef.current, currentSeed.current, true)
+          backend.flush?.()
+        } else {
+          rerenderLayer(layerId)        // ?skia=1: no HTMLCanvas snapshot, fall back to a model replay
+        }
+      } else {
+        if (ctx && !strokeUsedSkia.current) ctx.restore()   // unwind the Canvas2D clip from begin
+        eng?.end()
+        strokeBackend.current?.flush?.()
+        // Shape assist on release ONLY when hold-to-snap mode is off; otherwise a
+        // normal release leaves the rough stroke. Falls through to a freehand commit.
+        const snapped = (eng && assistRef.current.shapeAssist && !assistRef.current.holdToSnap)
+          ? runShapeAssist(layerId, eng.getRawPoints())
+          : false
+        if (!snapped) commitFreehandStroke(layerId)
+      }
     }
 
     // Close the broadcast stroke (raw stroke as drawn — soft-realtime, the submitted tile is
@@ -561,6 +630,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
     lastInputAt.current = 0
     activePointerId.current = null
     engineRef.current = null
+    profiActiveRef.current = false
+    profiPtsRef.current = []
     strokeBackend.current = null
     currentSamples.current = []
     currentTicks.current = []
@@ -569,7 +640,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas(
       rafRef.current = null
     }
     onStrokeEnd?.()
-  }, [onStrokeEnd, getActiveCtx, runShapeAssist, commitFreehandStroke])
+  }, [onStrokeEnd, getActiveCtx, runShapeAssist, commitFreehandStroke, rerenderLayer])
 
   // Imperative API — model-driven.
   useImperativeHandle(ref, () => ({

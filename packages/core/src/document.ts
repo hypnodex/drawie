@@ -13,6 +13,7 @@
 import type { ToolId, ToolSettings, AssistSettings, InputPoint } from './types'
 import type { RendererBackend } from './renderer'
 import { StrokeEngine } from './engine'
+import { renderProfiStroke } from './freehand'
 
 /** One captured pointer sample. Tilt is captured now (closes the §9 gap) even
  *  though the current engine ignores it — the model is the place to retain it. */
@@ -76,6 +77,11 @@ function toInput(s: StrokeSample): InputPoint {
 export function replayStroke(backend: RendererBackend, s: ModelStroke): void {
   const samples = s.samples
   if (!samples.length) return
+  // profibrush is NOT engine-stamped — it's a perfect-freehand filled ribbon over all points at once.
+  if (s.toolId === 'profibrush') {
+    renderProfiStroke(backend, samples.map((p) => ({ x: p.x, y: p.y, pressure: p.hasPressure ? p.pressure : 0.5 })), s.settings, s.seed)
+    return
+  }
   const eng = new StrokeEngine(backend, s.toolId, s.settings, s.assist, s.seed)
   const ticks = s.ticks ?? []
   eng.begin(toInput(samples[0]))

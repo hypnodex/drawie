@@ -93,6 +93,27 @@ export class SkiaBackend implements RendererBackend {
     this.skc.drawLine(x0, y0, x1, y1, p)
   }
 
+  strokePolyline(pts: number[], width: number, color: string, alpha: number, composite?: CompositeOp) {
+    if (pts.length < 4) return
+    const ck = this.ck
+    const cmds: number[] = [ck.MOVE_VERB, pts[0], pts[1]]
+    for (let i = 2; i < pts.length; i += 2) cmds.push(ck.LINE_VERB, pts[i], pts[i + 1])
+    const path = ck.Path.MakeFromCmds(cmds)
+    if (!path) return
+    const p = this.paint
+    p.setShader(null)
+    p.setMaskFilter(null)        // a prior blurred fillPath leaves a mask filter on the shared paint
+    p.setStyle(ck.PaintStyle.Stroke)
+    p.setStrokeWidth(width)
+    p.setStrokeCap(ck.StrokeCap.Round)
+    p.setStrokeJoin(ck.StrokeJoin.Round)
+    p.setAntiAlias(true)
+    p.setBlendMode(this.blend(composite))
+    p.setColor(this.color4f(color, alpha))
+    this.skc.drawPath(path, p)
+    path.delete()
+  }
+
   fillRect(x: number, y: number, w: number, h: number, color: string, alpha: number, composite?: CompositeOp) {
     const p = this.paint
     p.setShader(null)
@@ -101,6 +122,29 @@ export class SkiaBackend implements RendererBackend {
     p.setBlendMode(this.blend(composite))
     p.setColor(this.color4f(color, alpha))
     this.skc.drawRect(this.ck.XYWHRect(x, y, w, h), p)
+  }
+
+  fillPath(pts: number[], color: string, alpha: number, composite?: CompositeOp, blur = 0) {
+    if (pts.length < 6) return
+    const ck = this.ck
+    // 0.41 moved moveTo/lineTo onto PathBuilder; build via MakeFromCmds (a flat
+    // verb+coords list) which the runtime Path still constructs from directly.
+    const cmds: number[] = [ck.MOVE_VERB, pts[0], pts[1]]
+    for (let i = 2; i < pts.length; i += 2) cmds.push(ck.LINE_VERB, pts[i], pts[i + 1])
+    cmds.push(ck.CLOSE_VERB)
+    const path = ck.Path.MakeFromCmds(cmds)
+    if (!path) return
+    const p = this.paint
+    p.setShader(null)
+    p.setStyle(ck.PaintStyle.Fill)
+    p.setAntiAlias(true)
+    p.setBlendMode(this.blend(composite))
+    p.setColor(this.color4f(color, alpha))
+    const mf = blur > 0 ? ck.MaskFilter.MakeBlur(ck.BlurStyle.Normal, blur, true) : null
+    if (mf) p.setMaskFilter(mf)
+    this.skc.drawPath(path, p)
+    if (mf) { p.setMaskFilter(null); mf.delete() }
+    path.delete()
   }
 
   fillRadialGradient(

@@ -120,6 +120,26 @@ export class RNSkiaBackend implements RendererBackend {
     this.skc.drawLine(x0, y0, x1, y1, p)
   }
 
+  strokePolyline(pts: number[], width: number, color: string, alpha: number, composite?: CompositeOp) {
+    if (pts.length < 4) return
+    const path = Skia.Path.Make()
+    path.moveTo(pts[0], pts[1])
+    for (let i = 2; i < pts.length; i += 2) path.lineTo(pts[i], pts[i + 1])
+    const p = this.paint
+    this.cValid = false
+    p.setShader(null)
+    p.setMaskFilter(null)        // a prior blurred fillPath leaves a mask filter on the shared paint
+    p.setStyle(PaintStyle.Stroke)
+    p.setStrokeWidth(width)
+    p.setStrokeCap(StrokeCap.Round)
+    p.setStrokeJoin(StrokeJoin.Round)
+    p.setAntiAlias(true)
+    p.setBlendMode(this.blend(composite))
+    p.setColor(this.color(color, alpha))
+    this.skc.drawPath(path, p)
+    path.dispose()
+  }
+
   fillRect(x: number, y: number, w: number, h: number, color: string, alpha: number, composite?: CompositeOp) {
     const p = this.paint
     this.cValid = false

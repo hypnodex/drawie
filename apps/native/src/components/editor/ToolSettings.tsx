@@ -90,6 +90,11 @@ export function ToolSettingsPanel({
         <Slider label="Size" value={settings.size} min={1} max={240} onChange={(v) => onChange({ size: v })} format={(v) => `${Math.round(v)}px`} />
       )}
 
+      {/* Opacity — mirrors web: every painting tool except eraser/smudge/bucket and water-only waterdrop. */}
+      {tool !== 'eraser' && tool !== 'smudge' && tool !== 'bucket' && !waterOnly && (
+        <Slider label="Opacity" value={settings.opacity} min={0.05} max={1} step={0.01} onChange={(v) => onChange({ opacity: v })} format={pct} />
+      )}
+
       {tool === 'profibrush' && (
         <>
           <Slider label="Softness" value={settings.softness} min={0} max={1} step={0.01} onChange={(v) => onChange({ softness: v })} format={pct} />

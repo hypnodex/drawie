@@ -29,6 +29,13 @@ export const BrushIcon = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const ProfiBrushIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...solid(p)}>
+    <path d="M21 3.2a1.7 1.7 0 0 0-2.4 0l-8.1 8.1 2.4 2.4 8.1-8.1a1.7 1.7 0 0 0 0-2.4z" />
+    <path d="M9.7 12.1l2.2 2.2-3.4 3.4-3.9 1.6c-.5.2-1-.3-.8-.8l1.6-3.9 4.3-2.5z" />
+  </svg>
+)
+
 export const PencilIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...solid(p)}>
     <path d="M3 21l1-4.2L14.8 6 18 9.2 7.2 20 3 21z" />

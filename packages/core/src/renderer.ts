@@ -151,4 +151,11 @@ export interface RendererBackend {
    * profibrush "Softness". Optional — used by the perfect-freehand stroke ribbon.
    */
   fillPath?(pts: number[], color: string, alpha: number, composite?: CompositeOp, blur?: number): void
+
+  /**
+   * Stroke the open polyline `pts` (flat [x0,y0,x1,y1,...]) as ONE round-capped/joined path of `width`,
+   * `color` at `alpha`. Batches what would otherwise be many strokeLine() calls into a single path op —
+   * used by the profibrush streak overlay (a whole bristle in one call). Optional.
+   */
+  strokePolyline?(pts: number[], width: number, color: string, alpha: number, composite?: CompositeOp): void
 }

@@ -122,12 +122,15 @@ export function freehandOptions(settings: ToolSettings): FreehandOptions {
 
 // ── colour + noise helpers ───────────────────────────────────────────────────
 const hx = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')
-function shiftColor(hex: string, hue: number, val: number, slow: number, amt: number): string {
-  if (amt <= 0) return hex
+/** Parse "#rrggbb" → [r,g,b] once, so the per-segment colour shift below avoids a regex in the hot loop. */
+function parseHex(hex: string): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
-  if (!m) return hex
+  if (!m) return null
   const n = parseInt(m[1], 16)
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+/** Colour shift from PRE-PARSED rgb (no regex / no string parse) — called per streak chunk. */
+function shiftColorRGB(r: number, g: number, b: number, hue: number, val: number, slow: number, amt: number): string {
   const k = amt * 40
   return `#${hx(r + (hue * 0.8 + slow) * k)}${hx(g + (val * 0.8 - slow * 0.4) * k)}${hx(b + (-hue * 0.6 + slow) * k)}`
 }
@@ -154,13 +157,17 @@ export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[]
   const outline = outlineFromSpine(spine)
   if (outline.length >= 6) backend.fillPath(outline, color, settings.opacity, undefined, blur)
 
-  // STEP 2 — lengthwise streak overlay. Commit-time only by default (drawing N streak polylines every
-  // frame on a growing stroke was the lag); the live preview shows just the ribbon.
+  // STEP 2 — lengthwise streak overlay. Commit-time only by default (drawing the streaks every frame on
+  // a growing stroke was the lag); the live preview shows just the ribbon. Each bristle is drawn as a few
+  // constant-colour POLYLINE chunks (one path op each) rather than one strokeLine per spine segment — this
+  // cut the per-stroke op + regex count ~10× (it was re-run on every layer re-render).
   const tex = settings.tex ?? DEFAULT_TEX
   const N = Math.max(0, Math.min(16, Math.round(tex.bristles)))
-  if (!withStreaks || !backend.strokeLine || spine.length < 2 || N === 0) return
+  if (!withStreaks || !backend.strokePolyline || spine.length < 2 || N === 0) return
   const cAmt = tex.colorRandom / 100
+  const rgb = cAmt > 0 ? parseHex(color) : null
   const rng = mulberry32((seed >>> 0) || 1)
+  const CHUNK = 8 // spine points per constant-colour polyline chunk (colour/alpha sampled at its midpoint)
   for (let st = 0; st < N; st++) {
     const off = (rng() * 2 - 1) * 0.82      // across the width, inside the ribbon edge
     const hue = (rng() - 0.5) * 2
@@ -168,18 +175,19 @@ export function renderProfiStroke(backend: RendererBackend, pts: FreehandInput[]
     const baseAlpha = 0.1 + rng() * 0.16    // faint
     const lw = 1.2 + rng() * 1.8            // thin
     const ns = rng() * 1000
-    let px = 0, py = 0, has = false
-    for (let i = 0; i < spine.length; i++) {
-      const sp = spine[i]
-      const ox = sp.x + sp.nx * off * sp.radius
-      const oy = sp.y + sp.ny * off * sp.radius
-      if (has) {
-        const slow = noise1(sp.len * 0.018 + ns) - 0.5
-        const col = shiftColor(color, hue, val, slow, cAmt)
-        const a = Math.max(0, Math.min(1, baseAlpha * (0.6 + 0.7 * (slow + 0.5))))
-        backend.strokeLine(px, py, ox, oy, lw, col, a)
+    for (let start = 0; start < spine.length - 1; start += CHUNK) {
+      const end = Math.min(spine.length - 1, start + CHUNK) // chunks share their boundary point → no gaps
+      const mid = spine[(start + end) >> 1]
+      const slow = noise1(mid.len * 0.018 + ns) - 0.5
+      const col = rgb ? shiftColorRGB(rgb[0], rgb[1], rgb[2], hue, val, slow, cAmt) : color
+      const a = Math.max(0, Math.min(1, baseAlpha * (0.6 + 0.7 * (slow + 0.5))))
+      const poly: number[] = []
+      for (let i = start; i <= end; i++) {
+        const sp = spine[i]
+        poly.push(sp.x + sp.nx * off * sp.radius, sp.y + sp.ny * off * sp.radius)
       }
-      px = ox; py = oy; has = true
+      backend.strokePolyline(poly, lw, col, a)
+      if (end === spine.length - 1) break
     }
   }
 }

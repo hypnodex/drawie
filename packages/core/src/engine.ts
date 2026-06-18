@@ -249,7 +249,8 @@ export class StrokeEngine {
       case 'watercolor': return 0.08
       case 'spray':      return 0.16
       case 'eraser':     return 0.10
-      case 'smudge':     return 0.14
+      case 'smudge':     return 0.07  // dense overlap so fast strokes don't show discrete "layers" (the
+                                       //   per-stamp createSurface is pooled now, so the extra stamps are cheap)
       case 'waterdrop':  return 0.9
       case 'drybrush':   return 0.05
       case 'inkbrush':   return 0.05
@@ -710,18 +711,22 @@ export class StrokeEngine {
     // soft radial edge is preserved.
     const tmp = this.backend.createSurface(size, size)
     tmp.putRegion(buf, 0, 0)
-    // soft mask (destination-in)
+    // Soft mask (destination-in). A GENTLE falloff with no hard opaque core is what lets the dense,
+    // overlapping deposits merge into one continuous smear — a sharp core would print as discrete
+    // stacked patches ("layers") on fast strokes.
     const stops: GradientStop[] = [
-      { offset: 0,   color: 'rgba(0,0,0,1)' },
-      { offset: 0.6, color: 'rgba(0,0,0,0.85)' },
-      { offset: 1,   color: 'rgba(0,0,0,0)' },
+      { offset: 0,    color: 'rgba(0,0,0,0.85)' },
+      { offset: 0.5,  color: 'rgba(0,0,0,0.55)' },
+      { offset: 1,    color: 'rgba(0,0,0,0)' },
     ]
     tmp.fillRadialGradient(
       size / 2, size / 2, 0, size / 2, stops,
       { x: 0, y: 0, w: size, h: size },
       'destination-in',
     )
-    this.backend.drawSurface(tmp, p.x - size / 2, p.y - size / 2, undefined, strength * 0.8)
+    // Lower per-stamp alpha (was 0.8) since spacing is ~2× denser now — keeps the smear strength
+    // roughly constant while the heavier overlap removes the banding.
+    this.backend.drawSurface(tmp, p.x - size / 2, p.y - size / 2, undefined, strength * 0.5)
     tmp.dispose?.()
     // Re-capture from the new spot for next step
     this.captureSmudgeBuffer(p.x + dx * 0.3, p.y + dy * 0.3, r)
